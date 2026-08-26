@@ -1,0 +1,54 @@
+/* Garuda brand theme for Django admin — maroon & gold, matching the customer
+   and partner apps. Overrides the CSS custom properties Django's own admin
+   CSS (admin/css/base.css) already uses, so every built-in component
+   (headers, buttons, links, breadcrumbs) picks these up automatically. */
+:root,
+html[data-theme="light"] {
+    --primary: #800020;
+    --secondary: #5c0016;
+    --accent: #d4af37;
+    --primary-fg: #fff8f0;
+
+    --header-color: #d4af37;
+    --header-branding-color: #d4af37;
+    --header-bg: #5c0016;
+    --header-link-color: #fff8f0;
+
+    --breadcrumbs-fg: #ecd9c9;
+    --breadcrumbs-link-fg: #fff8f0;
+    --breadcrumbs-bg: #5c0016;
+
+    --link-fg: #800020;
+    --link-hover-color: #5c0016;
+    --link-selected-fg: #800020;
+
+    --button-fg: #fff;
+    --button-bg: #800020;
+    --button-hover-bg: #5c0016;
+    --default-button-bg: #5c0016;
+    --default-button-hover-bg: #800020;
+
+    --object-tools-bg: #5c0016;
+    --object-tools-hover-bg: #800020;
+}
+
+#branding a:link,
+#branding a:visited {
+    color: var(--accent);
+}
+
+div.breadcrumbs a {
+    color: var(--breadcrumbs-link-fg);
+}
+
+.selector-chosen h2,
+.calendar caption,
+.calendarbox h2 {
+    background: var(--primary) !important;
+}
+
+a.button.default,
+input[type="submit"].default,
+.submit-row input.default {
+    background: var(--primary);
+}

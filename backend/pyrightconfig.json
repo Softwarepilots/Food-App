@@ -1,0 +1,7 @@
+{
+  "include": ["apps", "config", "manage.py"],
+  "exclude": ["**/migrations", ".venv"],
+  "extraPaths": ["."],
+  "venvPath": ".",
+  "venv": ".venv"
+}
