@@ -25,6 +25,7 @@ class ApiConstants {
   static const String myRestaurants = '/restaurants/mine/';
   static String restaurantDetail(String id) => '/restaurants/$id/';
   static String restaurantStatus(String id) => '/restaurants/$id/status/';
+  static String restaurantBusinessHours(String id) => '/restaurants/$id/business-hours/';
 
   // Menu (owner-scoped)
   static String foods(String restaurantId) => '/menu/restaurants/$restaurantId/foods/';

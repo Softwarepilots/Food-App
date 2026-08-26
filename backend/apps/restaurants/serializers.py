@@ -154,7 +154,19 @@ class RestaurantCreateUpdateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data["owner"] = self.context["request"].user
-        return super().create(validated_data)
+        restaurant = super().create(validated_data)
+        # New restaurants have no business hours until the owner sets their
+        # own (there's no onboarding step that forces it) — without this
+        # they'd show as permanently "closed" to customers with no obvious
+        # reason why. Default to a reasonable 9am-10pm every day; the owner
+        # can adjust it via PUT /restaurants/<id>/business-hours/.
+        RestaurantBusinessHours.objects.bulk_create(
+            RestaurantBusinessHours(
+                restaurant=restaurant, day_of_week=day, opening_time="09:00", closing_time="22:00", is_closed=False
+            )
+            for day in range(7)
+        )
+        return restaurant
 
 
 class RestaurantStatusUpdateSerializer(serializers.ModelSerializer):

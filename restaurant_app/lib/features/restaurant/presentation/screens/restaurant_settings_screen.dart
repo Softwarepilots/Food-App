@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/error/failure.dart';
+import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/error_view.dart';
@@ -85,6 +87,15 @@ class RestaurantSettingsScreen extends ConsumerWidget {
                       subtitle: const Text('Turn off to pause new incoming orders temporarily.'),
                       value: restaurant.isAcceptingOrders,
                       onChanged: (value) => ref.read(myRestaurantProvider.notifier).setAcceptingOrders(value),
+                    ),
+                    const Divider(height: 1, color: AppColors.divider),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.schedule, color: AppColors.primary),
+                      title: const Text('Business hours'),
+                      subtitle: const Text('Customers see you as closed outside these hours.'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push(RoutePaths.businessHours, extra: restaurant.id),
                     ),
                   ],
                 ),

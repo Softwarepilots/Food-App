@@ -9,4 +9,5 @@ class RoutePaths {
   static const String orders = '/orders';
   static const String menu = '/menu';
   static const String settings = '/settings';
+  static const String businessHours = '/business-hours';
 }

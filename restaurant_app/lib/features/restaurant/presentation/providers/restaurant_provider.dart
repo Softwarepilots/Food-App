@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/providers/core_providers.dart';
 import '../../data/datasources/restaurant_remote_datasource.dart';
+import '../../data/models/business_hours_model.dart';
 import '../../data/models/restaurant_model.dart';
 
 final restaurantRemoteDataSourceProvider = Provider<RestaurantRemoteDataSource>((ref) {
@@ -56,3 +57,19 @@ class MyRestaurantNotifier extends AsyncNotifier<RestaurantModel?> {
 }
 
 final myRestaurantProvider = AsyncNotifierProvider<MyRestaurantNotifier, RestaurantModel?>(MyRestaurantNotifier.new);
+
+class BusinessHoursNotifier extends FamilyAsyncNotifier<List<BusinessHoursEntry>, String> {
+  @override
+  Future<List<BusinessHoursEntry>> build(String restaurantId) {
+    return ref.watch(restaurantRemoteDataSourceProvider).getBusinessHours(restaurantId);
+  }
+
+  Future<void> save(List<BusinessHoursEntry> entries) async {
+    final updated = await ref.read(restaurantRemoteDataSourceProvider).updateBusinessHours(arg, entries);
+    state = AsyncValue.data(updated);
+  }
+}
+
+final businessHoursProvider = AsyncNotifierProvider.family<BusinessHoursNotifier, List<BusinessHoursEntry>, String>(
+  BusinessHoursNotifier.new,
+);

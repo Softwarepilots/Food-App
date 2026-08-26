@@ -8,6 +8,7 @@ import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/menu/presentation/screens/menu_list_screen.dart';
 import '../../features/orders/presentation/screens/order_list_screen.dart';
 import '../../features/restaurant/presentation/providers/restaurant_provider.dart';
+import '../../features/restaurant/presentation/screens/business_hours_screen.dart';
 import '../../features/restaurant/presentation/screens/restaurant_settings_screen.dart';
 import '../../features/restaurant/presentation/screens/restaurant_setup_screen.dart';
 import '../../features/splash/presentation/screens/splash_screen.dart';
@@ -66,6 +67,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: RoutePaths.login, builder: (context, state) => const LoginScreen()),
       GoRoute(path: RoutePaths.register, builder: (context, state) => const RegisterScreen()),
       GoRoute(path: RoutePaths.setup, builder: (context, state) => const RestaurantSetupScreen()),
+      GoRoute(
+        path: RoutePaths.businessHours,
+        builder: (context, state) => BusinessHoursScreen(restaurantId: state.extra as String),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => MainShell(navigationShell: navigationShell),
         branches: [

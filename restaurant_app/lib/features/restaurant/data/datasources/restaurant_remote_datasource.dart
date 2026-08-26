@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/api_response.dart';
+import '../models/business_hours_model.dart';
 import '../models/restaurant_model.dart';
 
 class RestaurantRemoteDataSource {
@@ -53,6 +54,28 @@ class RestaurantRemoteDataSource {
         if (isAcceptingOrders != null) 'is_accepting_orders': isAcceptingOrders,
       });
       return RestaurantModel.fromJson(unwrapData(response) as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioExceptionToAppException(e);
+    }
+  }
+
+  Future<List<BusinessHoursEntry>> getBusinessHours(String restaurantId) async {
+    try {
+      final response = await _dio.get(ApiConstants.restaurantBusinessHours(restaurantId));
+      final data = unwrapData(response) as List<dynamic>;
+      return data.map((e) => BusinessHoursEntry.fromJson(e as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw mapDioExceptionToAppException(e);
+    }
+  }
+
+  Future<List<BusinessHoursEntry>> updateBusinessHours(String restaurantId, List<BusinessHoursEntry> entries) async {
+    try {
+      final response = await _dio.put(ApiConstants.restaurantBusinessHours(restaurantId), data: {
+        'entries': entries.map((e) => e.toJson()).toList(),
+      });
+      final data = unwrapData(response) as List<dynamic>;
+      return data.map((e) => BusinessHoursEntry.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw mapDioExceptionToAppException(e);
     }
