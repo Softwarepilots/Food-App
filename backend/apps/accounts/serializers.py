@@ -44,6 +44,10 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class UserActiveStatusSerializer(serializers.Serializer):
+    is_active = serializers.BooleanField()
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     # The model itself allows a blank email (customers register via phone+OTP
     # and never touch this serializer), but anyone registering *through* this

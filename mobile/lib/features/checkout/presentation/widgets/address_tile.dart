@@ -44,7 +44,7 @@ class AddressTile extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(address.label, style: AppTextStyles.titleMedium),
+                      Text(address.displayLabel, style: AppTextStyles.titleMedium),
                       if (address.isDefault) ...[
                         const SizedBox(width: 8),
                         Container(

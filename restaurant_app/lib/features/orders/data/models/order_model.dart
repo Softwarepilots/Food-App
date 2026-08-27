@@ -77,6 +77,8 @@ extension OrderStatusX on OrderStatus {
   /// The single next status this owner app lets you move to (mirrors the
   /// backend's `ALLOWED_STATUS_TRANSITIONS`) — null when there's no forward
   /// move (delivered/cancelled) or the next step is customer/delivery-partner-driven.
+  /// Once an order is ready for pickup, claiming and delivering it belongs to
+  /// the delivery partner app, not this one.
   OrderStatus? get nextStep {
     switch (this) {
       case OrderStatus.placed:
@@ -86,9 +88,7 @@ extension OrderStatusX on OrderStatus {
       case OrderStatus.preparing:
         return OrderStatus.readyForPickup;
       case OrderStatus.readyForPickup:
-        return OrderStatus.outForDelivery;
       case OrderStatus.outForDelivery:
-        return OrderStatus.delivered;
       case OrderStatus.delivered:
       case OrderStatus.cancelled:
         return null;
@@ -130,6 +130,8 @@ class OrderModel extends Equatable {
   final String id;
   final String orderNumber;
   final List<OrderItemModel> items;
+  final String customerName;
+  final String customerPhone;
   final String deliveryAddressText;
   final OrderStatus status;
   final String paymentStatus;
@@ -142,6 +144,8 @@ class OrderModel extends Equatable {
     required this.id,
     required this.orderNumber,
     required this.items,
+    required this.customerName,
+    required this.customerPhone,
     required this.deliveryAddressText,
     required this.status,
     required this.paymentStatus,
@@ -155,6 +159,8 @@ class OrderModel extends Equatable {
         id: json['id'] as String,
         orderNumber: json['order_number'] as String? ?? '',
         items: (json['items'] as List<dynamic>? ?? []).map((e) => OrderItemModel.fromJson(e as Map<String, dynamic>)).toList(),
+        customerName: json['customer_name'] as String? ?? '',
+        customerPhone: json['customer_phone'] as String? ?? '',
         deliveryAddressText: json['delivery_address_text'] as String? ?? '',
         status: _parseStatus(json['status'] as String?),
         paymentStatus: json['payment_status'] as String? ?? 'pending',
@@ -165,5 +171,18 @@ class OrderModel extends Equatable {
       );
 
   @override
-  List<Object?> get props => [id, orderNumber, items, deliveryAddressText, status, paymentStatus, paymentMethod, totalAmount, notes, createdAt];
+  List<Object?> get props => [
+        id,
+        orderNumber,
+        items,
+        customerName,
+        customerPhone,
+        deliveryAddressText,
+        status,
+        paymentStatus,
+        paymentMethod,
+        totalAmount,
+        notes,
+        createdAt,
+      ];
 }

@@ -11,6 +11,7 @@ from apps.common.pagination import paginated_response
 from apps.common.response import APIResponse
 
 from .models import Address, OTPPurpose, User
+from .permissions import IsAdminRole
 from .serializers import (
     AddressSerializer,
     CustomTokenObtainPairSerializer,
@@ -23,6 +24,7 @@ from .serializers import (
     OTPLoginVerifySerializer,
     PhoneVerifyConfirmSerializer,
     RegisterSerializer,
+    UserActiveStatusSerializer,
     UserSerializer,
 )
 from .services import OTPService, get_or_create_user_by_phone, send_password_reset_email, send_sms, send_verification_email
@@ -68,6 +70,34 @@ class LoginView(APIView):
                 "refresh": str(token),
             }
         )
+
+
+@extend_schema(tags=["Admin"], summary="List all users, optionally filtered by role (admin only)")
+class AdminUserListView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        queryset = User.objects.all().order_by("-created_at")
+        role = request.query_params.get("role")
+        if role:
+            queryset = queryset.filter(role=role)
+        search = request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(full_name__icontains=search) | queryset.filter(email__icontains=search)
+        return paginated_response(request, self, queryset, UserSerializer)
+
+
+@extend_schema(tags=["Admin"], summary="Activate or deactivate a user account (admin only)")
+class AdminUserStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    def patch(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        serializer = UserActiveStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user.is_active = serializer.validated_data["is_active"]
+        user.save(update_fields=["is_active"])
+        return APIResponse(data=UserSerializer(user).data)
 
 
 @extend_schema(tags=["Auth"], summary="Logout by blacklisting the current refresh token")

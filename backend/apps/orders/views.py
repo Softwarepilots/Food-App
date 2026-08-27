@@ -3,7 +3,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, status
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsRestaurantOwner
+from apps.accounts.permissions import IsAdminRole, IsRestaurantOwner
 from apps.common.pagination import paginated_response
 from apps.common.response import APIResponse
 from apps.restaurants.permissions import IsRestaurantOwnerOfObject
@@ -19,7 +19,7 @@ class OrderListCreateView(APIView):
 
     @extend_schema(summary="List the current user's orders, most recent first")
     def get(self, request):
-        queryset = Order.objects.filter(user=request.user)
+        queryset = Order.objects.filter(user=request.user).select_related("user")
         return paginated_response(request, self, queryset, OrderSerializer)
 
     @extend_schema(summary="Place an order from the current cart")
@@ -64,7 +64,19 @@ class RestaurantOrdersView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsRestaurantOwner]
 
     def get(self, request):
-        queryset = Order.objects.filter(restaurant__owner=request.user)
+        queryset = Order.objects.filter(restaurant__owner=request.user).select_related("user")
+        status_filter = request.query_params.get("status")
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        return paginated_response(request, self, queryset, OrderSerializer)
+
+
+@extend_schema(tags=["Admin"], summary="List every order platform-wide, optionally filtered by status (admin only)")
+class AdminOrderListView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        queryset = Order.objects.all().select_related("user")
         status_filter = request.query_params.get("status")
         if status_filter:
             queryset = queryset.filter(status=status_filter)

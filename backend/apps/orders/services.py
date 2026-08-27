@@ -134,13 +134,13 @@ def cancel_order(order, user, reason=""):
 
 # Restaurant-partner-facing status transitions. Each key's forward moves are
 # the only next states the owner app is allowed to set — anything else
-# (skipping a stage, moving backwards) is rejected.
+# (skipping a stage, moving backwards) is rejected. Once an order is ready for
+# pickup, ownership of the remaining transitions (claim -> deliver) moves to
+# the delivery partner app — see apps.delivery.services.
 ALLOWED_STATUS_TRANSITIONS = {
     OrderStatus.PLACED: {OrderStatus.ACCEPTED, OrderStatus.CANCELLED},
     OrderStatus.ACCEPTED: {OrderStatus.PREPARING, OrderStatus.CANCELLED},
     OrderStatus.PREPARING: {OrderStatus.READY_FOR_PICKUP},
-    OrderStatus.READY_FOR_PICKUP: {OrderStatus.OUT_FOR_DELIVERY},
-    OrderStatus.OUT_FOR_DELIVERY: {OrderStatus.DELIVERED},
 }
 
 

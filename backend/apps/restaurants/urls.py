@@ -9,6 +9,7 @@ urlpatterns = [
     path("categories/<uuid:pk>/", views.RestaurantCategoryDetailView.as_view(), name="category-detail"),
     path("mine/", views.MyRestaurantsView.as_view(), name="mine"),
     path("pending-approval/", views.PendingApprovalListView.as_view(), name="pending-approval"),
+    path("admin/all/", views.AdminRestaurantListView.as_view(), name="admin-all"),
     path("favorites/", views.FavoriteListView.as_view(), name="favorite-list"),
     path("", views.RestaurantListCreateView.as_view(), name="list-create"),
     path("<uuid:pk>/", views.RestaurantDetailView.as_view(), name="detail"),

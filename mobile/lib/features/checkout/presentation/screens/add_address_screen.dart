@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/error/failure.dart';
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
@@ -15,9 +16,17 @@ class AddAddressScreen extends ConsumerStatefulWidget {
   ConsumerState<AddAddressScreen> createState() => _AddAddressScreenState();
 }
 
+// Must match the backend's `AddressLabel` choices (home/work/other) exactly —
+// the API rejects any other value with a 400.
+const _labelOptions = [
+  (code: 'home', display: 'Home'),
+  (code: 'work', display: 'Work'),
+  (code: 'other', display: 'Other'),
+];
+
 class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _labelController = TextEditingController(text: 'Home');
+  String _label = 'home';
   final _line1Controller = TextEditingController();
   final _line2Controller = TextEditingController();
   final _cityController = TextEditingController();
@@ -28,7 +37,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
   @override
   void dispose() {
-    _labelController.dispose();
     _line1Controller.dispose();
     _line2Controller.dispose();
     _cityController.dispose();
@@ -43,7 +51,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     try {
       final address = AddressModel(
         id: '',
-        label: _labelController.text.trim(),
+        label: _label,
         addressLine1: _line1Controller.text.trim(),
         addressLine2: _line2Controller.text.trim().isEmpty ? null : _line2Controller.text.trim(),
         city: _cityController.text.trim(),
@@ -75,10 +83,18 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppTextField(
-                controller: _labelController,
-                label: 'Label (e.g. Home, Work)',
-                validator: (value) => Validators.required(value, fieldName: 'Label'),
+              Text('Label', style: AppTextStyles.bodyMedium),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final option in _labelOptions)
+                    ChoiceChip(
+                      label: Text(option.display),
+                      selected: _label == option.code,
+                      onSelected: (_) => setState(() => _label = option.code),
+                    ),
+                ],
               ),
               const SizedBox(height: 16),
               AppTextField(

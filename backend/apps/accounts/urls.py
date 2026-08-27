@@ -22,4 +22,6 @@ urlpatterns = [
     path("otp/verify/", views.OTPLoginVerifyView.as_view(), name="otp-verify"),
     path("addresses/", views.AddressListCreateView.as_view(), name="address-list-create"),
     path("addresses/<uuid:pk>/", views.AddressDetailView.as_view(), name="address-detail"),
+    path("admin/users/", views.AdminUserListView.as_view(), name="admin-user-list"),
+    path("admin/users/<uuid:pk>/status/", views.AdminUserStatusView.as_view(), name="admin-user-status"),
 ]

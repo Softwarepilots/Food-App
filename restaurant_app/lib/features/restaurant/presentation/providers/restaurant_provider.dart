@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/providers/core_providers.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/datasources/restaurant_remote_datasource.dart';
 import '../../data/models/business_hours_model.dart';
 import '../../data/models/restaurant_model.dart';
@@ -15,6 +16,16 @@ final restaurantRemoteDataSourceProvider = Provider<RestaurantRemoteDataSource>(
 class MyRestaurantNotifier extends AsyncNotifier<RestaurantModel?> {
   @override
   Future<RestaurantModel?> build() async {
+    // Watching authProvider (not just reading it) is what makes this
+    // provider automatically refetch the moment login/logout changes auth
+    // state — without it, this only ever ran once at app startup (before
+    // any token existed), and its stale unauthenticated result never
+    // refreshed after a successful login, permanently misrouting the app
+    // to the "create restaurant" setup screen even for owners who already
+    // have one.
+    final authState = ref.watch(authProvider);
+    if (!authState.isAuthenticated) return null;
+
     final restaurants = await ref.watch(restaurantRemoteDataSourceProvider).getMyRestaurants();
     return restaurants.isEmpty ? null : restaurants.first;
   }

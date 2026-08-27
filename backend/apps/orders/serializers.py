@@ -33,12 +33,14 @@ class OrderSerializer(serializers.ModelSerializer):
     delivery_partner_name = serializers.SerializerMethodField()
     delivery_partner_phone = serializers.SerializerMethodField()
     payment_method = serializers.SerializerMethodField()
+    customer_name = serializers.CharField(source="user.full_name", read_only=True)
+    customer_phone = serializers.CharField(source="user.phone_number", read_only=True)
 
     class Meta:
         model = Order
         fields = (
             "id", "order_number", "restaurant_id", "restaurant_name", "restaurant_image_url", "items",
-            "delivery_address_text", "status", "payment_status", "payment_method",
+            "customer_name", "customer_phone", "delivery_address_text", "status", "payment_status", "payment_method",
             "subtotal", "delivery_fee", "tax_amount", "discount_amount", "total_amount", "notes",
             "created_at", "estimated_delivery_at", "delivery_partner_name", "delivery_partner_phone",
         )

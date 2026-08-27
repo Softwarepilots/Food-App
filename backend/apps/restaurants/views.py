@@ -150,6 +150,18 @@ class PendingApprovalListView(APIView):
         return paginated_response(request, self, queryset, RestaurantDetailSerializer)
 
 
+@extend_schema(tags=["Restaurants"], summary="List every restaurant regardless of approval/active state (admin only)")
+class AdminRestaurantListView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    def get(self, request):
+        queryset = Restaurant.objects.all().order_by("-created_at")
+        approval_status = request.query_params.get("approval_status")
+        if approval_status:
+            queryset = queryset.filter(approval_status=approval_status)
+        return paginated_response(request, self, queryset, RestaurantDetailSerializer)
+
+
 @extend_schema(tags=["Restaurants"])
 class RestaurantDetailView(APIView):
     def get_permissions(self):

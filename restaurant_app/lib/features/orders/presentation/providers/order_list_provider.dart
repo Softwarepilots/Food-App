@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,8 @@ import '../../../../core/error/failure.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../data/datasources/order_remote_datasource.dart';
 import '../../data/models/order_model.dart';
+
+const _pollInterval = Duration(seconds: 20);
 
 final orderRemoteDataSourceProvider = Provider<OrderRemoteDataSource>((ref) {
   return OrderRemoteDataSource(ref.watch(dioProvider));
@@ -35,6 +39,8 @@ class OrderListNotifier extends Notifier<OrderListState> {
   @override
   OrderListState build() {
     Future.microtask(refresh);
+    final timer = Timer.periodic(_pollInterval, (_) => refresh());
+    ref.onDispose(timer.cancel);
     return const OrderListState(isLoading: true);
   }
 

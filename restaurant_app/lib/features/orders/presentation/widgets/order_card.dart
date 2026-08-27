@@ -54,6 +54,32 @@ class OrderCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(Formatters.relative(order.createdAt), style: AppTextStyles.caption),
           const SizedBox(height: 10),
+          if (order.customerName.isNotEmpty || order.customerPhone.isNotEmpty) ...[
+            Row(
+              children: [
+                const Icon(Icons.person_outline, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    [order.customerName, order.customerPhone].where((s) => s.isNotEmpty).join(' · '),
+                    style: AppTextStyles.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ],
+          if (order.deliveryAddressText.isNotEmpty) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.location_on_outlined, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 6),
+                Expanded(child: Text(order.deliveryAddressText, style: AppTextStyles.bodySmall)),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
           for (final item in order.items)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -110,11 +136,9 @@ class OrderCard extends StatelessWidget {
         return 'Start preparing';
       case OrderStatus.readyForPickup:
         return 'Mark ready for pickup';
-      case OrderStatus.outForDelivery:
-        return 'Send out for delivery';
-      case OrderStatus.delivered:
-        return 'Mark delivered';
       case OrderStatus.placed:
+      case OrderStatus.outForDelivery:
+      case OrderStatus.delivered:
       case OrderStatus.cancelled:
         return next.label;
     }
