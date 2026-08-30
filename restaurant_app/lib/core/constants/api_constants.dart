@@ -1,12 +1,18 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 /// API configuration. Override the base URL per build via:
 ///   flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1
 class ApiConstants {
   ApiConstants._();
 
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api/v1',
-  );
+  static const String _baseUrlOverride = String.fromEnvironment('API_BASE_URL');
+
+  // 10.0.2.2 is the Android emulator's alias for the host machine's localhost;
+  // it doesn't resolve on web (Chrome) or a real device, so pick per-platform.
+  static String get baseUrl {
+    if (_baseUrlOverride.isNotEmpty) return _baseUrlOverride;
+    return kIsWeb ? 'http://localhost:8000/api/v1' : 'http://10.0.2.2:8000/api/v1';
+  }
 
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 20);

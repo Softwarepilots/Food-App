@@ -55,6 +55,9 @@ class AddressModel extends Equatable {
         'longitude': longitude,
       };
 
+  /// Backend stores/returns [label] as a lowercase code (`home`/`work`/`other`) — capitalize for display.
+  String get displayLabel => label.isEmpty ? label : '${label[0].toUpperCase()}${label.substring(1)}';
+
   String get fullAddress => [
         addressLine1,
         if (addressLine2 != null && addressLine2!.isNotEmpty) addressLine2,

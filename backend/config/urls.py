@@ -23,6 +23,7 @@ api_v1_patterns = [
     path("payments/", include("apps.payments.urls")),
     path("delivery/", include("apps.delivery.urls")),
     path("notifications/", include("apps.notifications.urls")),
+    path("dashboard/", include("apps.dashboard.urls")),
 ]
 
 urlpatterns = [

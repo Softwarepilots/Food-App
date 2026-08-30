@@ -58,7 +58,7 @@ class RestaurantDetailScreen extends ConsumerWidget {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               color: AppColors.primary,
               child: InkWell(
-                onTap: () => context.push('/cart'),
+                onTap: () => context.go('/cart'),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
