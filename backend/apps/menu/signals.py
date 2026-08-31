@@ -31,7 +31,8 @@ def enforce_single_primary_image(sender, instance, **kwargs):
 
 
 def _notify_owner_of_stock_status(item, status):
-    from apps.notifications.models import Notification, NotificationType
+    from apps.notifications import services as notifications_services
+    from apps.notifications.models import NotificationType
 
     if status == "out_of_stock":
         body = f"{item.name} is now out of stock and has been hidden from the menu."
@@ -40,7 +41,7 @@ def _notify_owner_of_stock_status(item, status):
     else:
         return
 
-    Notification.objects.create(
+    notifications_services.create_notification(
         user_id=item.restaurant.owner_id,
         notification_type=NotificationType.SYSTEM,
         title="Inventory alert",

@@ -6,6 +6,7 @@ from apps.common.geo import haversine_distance_km
 from apps.common.storage import SupabaseStorageService
 
 from .models import (
+    Restaurant,
     RestaurantApprovalStatus,
     RestaurantBusinessHours,
     RestaurantDocument,
@@ -95,6 +96,13 @@ def review_restaurant_document(document, admin_user, status, reason=""):
     document.reviewed_at = timezone.now()
     document.save(update_fields=["status", "rejection_reason", "reviewed_by", "reviewed_at"])
     return document
+
+
+def update_rating_stats(restaurant_id, *, average_rating, total_reviews):
+    Restaurant.objects.filter(pk=restaurant_id).update(
+        average_rating=average_rating,
+        total_reviews=total_reviews,
+    )
 
 
 def get_rating_breakdown(restaurant):

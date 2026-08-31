@@ -14,7 +14,8 @@ def create_wallet_for_new_user(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=Payment)
 def sync_order_payment_status(sender, instance, **kwargs):
-    from apps.orders.models import Order, OrderPaymentStatus
+    from apps.orders import services as orders_services
+    from apps.orders.models import OrderPaymentStatus
 
     status_map = {
         PaymentGatewayStatus.CAPTURED: OrderPaymentStatus.PAID,
@@ -25,6 +26,4 @@ def sync_order_payment_status(sender, instance, **kwargs):
     if new_order_payment_status is None:
         return
 
-    Order.objects.filter(pk=instance.order_id).exclude(payment_status=new_order_payment_status).update(
-        payment_status=new_order_payment_status
-    )
+    orders_services.set_payment_status(instance.order_id, new_order_payment_status)

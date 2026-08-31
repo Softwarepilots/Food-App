@@ -34,13 +34,14 @@ def _capture_previous_status(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Order)
 def notify_on_status_change(sender, instance, created, **kwargs):
-    from apps.notifications.models import Notification, NotificationType
+    from apps.notifications import services as notifications_services
+    from apps.notifications.models import NotificationType
 
     previous_status = getattr(instance, "_previous_status", None)
     if not created and previous_status == instance.status:
         return
 
-    Notification.objects.create(
+    notifications_services.create_notification(
         user_id=instance.user_id,
         notification_type=NotificationType.ORDER_UPDATE,
         title=f"Order {instance.order_number}",
@@ -50,12 +51,13 @@ def notify_on_status_change(sender, instance, created, **kwargs):
 
 
 def _recompute_restaurant_rating(restaurant_id):
-    from apps.restaurants.models import Restaurant
+    from apps.restaurants import services as restaurants_services
 
     aggregate = Review.objects.filter(restaurant_id=restaurant_id).aggregate(
         avg_rating=Avg("rating"), review_count=Count("id")
     )
-    Restaurant.objects.filter(pk=restaurant_id).update(
+    restaurants_services.update_rating_stats(
+        restaurant_id,
         average_rating=aggregate["avg_rating"] or 0,
         total_reviews=aggregate["review_count"] or 0,
     )

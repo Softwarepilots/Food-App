@@ -32,7 +32,8 @@ def notify_owner_on_approval_change(sender, instance, created, **kwargs):
     if instance.approval_status not in (RestaurantApprovalStatus.APPROVED, RestaurantApprovalStatus.REJECTED):
         return
 
-    from apps.notifications.models import Notification, NotificationType
+    from apps.notifications import services as notifications_services
+    from apps.notifications.models import NotificationType
 
     if instance.approval_status == RestaurantApprovalStatus.APPROVED:
         body = f"Congratulations! {instance.name} has been approved and is now live."
@@ -40,7 +41,7 @@ def notify_owner_on_approval_change(sender, instance, created, **kwargs):
         reason = f" Reason: {instance.rejection_reason}" if instance.rejection_reason else ""
         body = f"{instance.name} was not approved.{reason}"
 
-    Notification.objects.create(
+    notifications_services.create_notification(
         user_id=instance.owner_id,
         notification_type=NotificationType.SYSTEM,
         title="Restaurant approval update",

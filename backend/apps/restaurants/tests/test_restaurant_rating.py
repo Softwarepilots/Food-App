@@ -32,3 +32,17 @@ def test_rating_breakdown_reflects_reviews(api_client, make_restaurant, customer
     assert body["breakdown"]["3"] == 1
     assert body["total_reviews"] == 2  # kept in sync by the orders.signals rating-recompute hook
     assert float(body["average_rating"]) == 4.0
+
+
+def test_update_rating_stats_writes_restaurant_fields(make_restaurant):
+    from decimal import Decimal
+
+    from apps.restaurants.services import update_rating_stats
+
+    restaurant = make_restaurant()
+
+    update_rating_stats(restaurant.id, average_rating=Decimal("4.50"), total_reviews=3)
+
+    restaurant.refresh_from_db()
+    assert restaurant.average_rating == Decimal("4.50")
+    assert restaurant.total_reviews == 3

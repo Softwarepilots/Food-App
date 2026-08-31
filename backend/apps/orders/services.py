@@ -8,7 +8,7 @@ from apps.accounts.models import Address
 from apps.common.exceptions import ApplicationError
 from apps.menu.models import Food, FoodAddon, FoodVariant
 from apps.menu.services import calculate_price
-from apps.payments.models import Payment
+from apps.payments import services as payments_services
 from apps.payments.models import PaymentMethod as PaymentMethodChoice
 from apps.restaurants.models import Restaurant, RestaurantApprovalStatus
 
@@ -114,7 +114,7 @@ def place_order(user, *, restaurant_id, address_id, items_payload, payment_metho
     payment_method_value = (
         PaymentMethodChoice.COD if payment_method == "cod" else PaymentMethodChoice.RAZORPAY
     )
-    Payment.objects.create(order=order, method=payment_method_value, amount=total_amount)
+    payments_services.create_payment_for_order(order, method=payment_method_value, amount=total_amount)
 
     return order
 
@@ -132,15 +132,17 @@ def cancel_order(order, user, reason=""):
     return order
 
 
-# Restaurant-partner-facing status transitions. Each key's forward moves are
-# the only next states the owner app is allowed to set — anything else
-# (skipping a stage, moving backwards) is rejected. Once an order is ready for
-# pickup, ownership of the remaining transitions (claim -> deliver) moves to
-# the delivery partner app — see apps.delivery.services.
+# Restaurant-partner-facing and delivery-partner-facing status transitions.
+# Each key's forward moves are the only next states allowed — anything else
+# (skipping a stage, moving backwards) is rejected. Callers outside this app
+# (e.g. apps.delivery.services) go through update_order_status/
+# assign_delivery_partner below rather than mutating Order directly, so this
+# module stays the single place order-state rules are enforced.
 ALLOWED_STATUS_TRANSITIONS = {
     OrderStatus.PLACED: {OrderStatus.ACCEPTED, OrderStatus.CANCELLED},
     OrderStatus.ACCEPTED: {OrderStatus.PREPARING, OrderStatus.CANCELLED},
     OrderStatus.PREPARING: {OrderStatus.READY_FOR_PICKUP},
+    OrderStatus.OUT_FOR_DELIVERY: {OrderStatus.DELIVERED},
 }
 
 
@@ -165,3 +167,26 @@ def update_order_status(order, new_status):
         update_fields.append("cancelled_at")
     order.save(update_fields=update_fields)
     return order
+
+
+def assign_delivery_partner(order, delivery_partner):
+    """Claims a ready-for-pickup order for a delivery partner. Owned here
+    (not in apps.delivery) because it mutates Order's own state machine —
+    apps.delivery.services.accept_order calls this after its own
+    partner-eligibility checks."""
+    if order.status != OrderStatus.READY_FOR_PICKUP or order.delivery_partner_id is not None:
+        raise ApplicationError("This order is no longer available.", code="order_unavailable", status_code=400)
+
+    order.delivery_partner = delivery_partner
+    order.status = OrderStatus.OUT_FOR_DELIVERY
+    order.save(update_fields=["delivery_partner", "status"])
+    return order
+
+
+def set_payment_status(order_id, new_payment_status):
+    """Used by apps.payments.signals when a Payment's gateway status changes.
+    Deliberately a queryset .update() rather than fetch+save so this does not
+    fire Order's post_save signals on every payment-status sync."""
+    Order.objects.filter(pk=order_id).exclude(payment_status=new_payment_status).update(
+        payment_status=new_payment_status
+    )
