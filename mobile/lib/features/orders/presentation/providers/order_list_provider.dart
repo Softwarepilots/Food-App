@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/failure.dart';
 import '../../data/models/order_model.dart';
 import 'order_repository_provider.dart';
@@ -46,8 +49,11 @@ class OrderListState extends Equatable {
 }
 
 class OrderListNotifier extends Notifier<OrderListState> {
+  Timer? _pollTimer;
+
   @override
   OrderListState build() {
+    ref.onDispose(() => _pollTimer?.cancel());
     Future.microtask(loadFirstPage);
     return const OrderListState();
   }
@@ -57,9 +63,20 @@ class OrderListNotifier extends Notifier<OrderListState> {
     try {
       final result = await ref.read(orderRepositoryProvider).getOrders(page: 1);
       state = state.copyWith(orders: result.items, isLoading: false, page: 1, hasMore: result.meta.hasMore);
+      _scheduleNextPoll();
     } catch (e) {
       state = state.copyWith(isLoading: false, failure: Failure.fromException(e));
     }
+  }
+
+  /// Re-fetches page 1 on a delay, unconditionally — this is what makes a
+  /// just-placed order (or an in-flight status change, e.g. a delivery
+  /// partner accepting it) show up here without the user pulling to
+  /// refresh. Gating this on "any order still active" would miss a brand
+  /// new order arriving after the list was last fetched empty/all-settled.
+  void _scheduleNextPoll() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer(AppConstants.orderPollInterval, loadFirstPage);
   }
 
   Future<void> loadNextPage() async {

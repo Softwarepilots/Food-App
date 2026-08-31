@@ -9,6 +9,7 @@ import '../../../../core/providers/core_providers.dart';
 import '../../../profile/presentation/providers/partner_provider.dart';
 import '../../data/datasources/delivery_order_remote_datasource.dart';
 import '../../data/models/order_model.dart';
+import 'my_deliveries_provider.dart';
 
 final deliveryOrderRemoteDataSourceProvider = Provider<DeliveryOrderRemoteDataSource>((ref) {
   return DeliveryOrderRemoteDataSource(ref.watch(dioProvider));
@@ -73,6 +74,10 @@ class AvailableOrdersNotifier extends Notifier<AvailableOrdersState> {
     // Claimed orders drop off the job board immediately rather than waiting
     // for the next poll tick.
     state = state.copyWith(orders: [for (final order in state.orders) if (order.id != orderId) order]);
+    // "My Deliveries" is a separate provider that only fetches on its own
+    // load/pull-to-refresh — without this the newly accepted order wouldn't
+    // show up there until the rider manually refreshes.
+    await ref.read(myDeliveriesProvider.notifier).refresh();
   }
 }
 
