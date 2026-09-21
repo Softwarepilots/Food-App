@@ -4,6 +4,9 @@
 venv/
 env/
 
+# Firebase service-account key (grants FCM send + admin access — never commit)
+firebase-service-account*.json
+
 # Python
 __pycache__/
 *.py[cod]

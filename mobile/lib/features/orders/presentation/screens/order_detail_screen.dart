@@ -12,6 +12,7 @@ import '../../data/models/order_model.dart';
 import '../providers/order_detail_provider.dart';
 import '../widgets/delivery_partner_card.dart';
 import '../widgets/delivery_route_preview.dart';
+import '../widgets/order_review_card.dart';
 import '../widgets/order_status_timeline.dart';
 
 class OrderDetailScreen extends ConsumerWidget {
@@ -139,6 +140,10 @@ class _OrderDetailBody extends ConsumerWidget {
         if (order.canCancel) ...[
           const SizedBox(height: 24),
           AppButton(label: 'Cancel order', variant: AppButtonVariant.outlined, onPressed: () => _cancel(context, ref)),
+        ],
+        if (order.status == OrderStatus.delivered) ...[
+          const SizedBox(height: 24),
+          OrderReviewCard(orderId: orderId, deliveryPartnerName: order.deliveryPartnerName),
         ],
         const SizedBox(height: 24),
       ],

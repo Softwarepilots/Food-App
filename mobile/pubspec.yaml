@@ -44,11 +44,23 @@ dependencies:
   uuid: ^4.5.1
 
   cupertino_icons: ^1.0.8
+  firebase_core: ^4.15.0
+  firebase_messaging: ^16.7.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
+# path_provider_android (via google_fonts) pulls in package:jni, whose
+# Android Gradle module has a broken externalNativeBuild/CMake config that
+# fails `:jni:compileDebugJavaWithJavac` with "Cannot query the value of
+# this provider" on any real-device or universal-APK debug build — confirmed
+# present in both 1.0.0 and 1.0.3, and unaffected by NDK/SDK reinstalls or
+# ABI-filter workarounds. Pinning path_provider_android to the last release
+# before it migrated to package:jni sidesteps the broken module entirely.
+dependency_overrides:
+  path_provider_android: 2.2.10
 
 flutter:
   uses-material-design: true

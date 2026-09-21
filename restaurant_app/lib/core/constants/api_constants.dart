@@ -32,6 +32,11 @@ class ApiConstants {
   static String restaurantDetail(String id) => '/restaurants/$id/';
   static String restaurantStatus(String id) => '/restaurants/$id/status/';
   static String restaurantBusinessHours(String id) => '/restaurants/$id/business-hours/';
+  static String restaurantDashboard(String id) => '/restaurants/$id/dashboard/';
+  static String restaurantPause(String id) => '/restaurants/$id/pause/';
+  static String restaurantResume(String id) => '/restaurants/$id/resume/';
+  static String restaurantStaff(String id) => '/restaurants/$id/staff/';
+  static String restaurantStaffDetail(String id, String staffId) => '/restaurants/$id/staff/$staffId/';
 
   // Menu (owner-scoped)
   static String foods(String restaurantId) => '/menu/restaurants/$restaurantId/foods/';
@@ -42,4 +47,8 @@ class ApiConstants {
   // Orders (owner-scoped)
   static const String restaurantOrders = '/orders/restaurant-orders/';
   static String orderStatus(String id) => '/orders/$id/status/';
+
+  // Notifications
+  static const String deviceRegister = '/notifications/devices/register/';
+  static const String deviceUnregister = '/notifications/devices/unregister/';
 }

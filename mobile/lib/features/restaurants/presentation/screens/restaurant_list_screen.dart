@@ -3,13 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/debouncer.dart';
 import '../../../../core/widgets/empty_view.dart';
 import '../../../../core/widgets/error_view.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../providers/restaurant_list_provider.dart';
+import '../providers/restaurant_repository_provider.dart';
 import '../widgets/restaurant_card.dart';
 import '../widgets/restaurant_sort_sheet.dart';
+import '../widgets/veg_toggle.dart';
 
 class RestaurantListScreen extends ConsumerStatefulWidget {
   final String? initialSearch;
@@ -69,30 +72,43 @@ class _RestaurantListScreenState extends ConsumerState<RestaurantListScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search restaurants or cuisines',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () {
-                          _searchController.clear();
-                          ref.read(restaurantListProvider.notifier).updateFilters(
-                                state.filters.copyWith(search: ''),
-                              );
-                          setState(() {});
-                        },
-                      )
-                    : null,
-              ),
-              onChanged: (value) {
-                setState(() {});
-                _debouncer.call(() {
-                  ref.read(restaurantListProvider.notifier).updateFilters(state.filters.copyWith(search: value));
-                });
-              },
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search restaurants or cuisines',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                ref.read(restaurantListProvider.notifier).updateFilters(
+                                      state.filters.copyWith(search: ''),
+                                    );
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                    ),
+                    onChanged: (value) {
+                      setState(() {});
+                      _debouncer.call(() {
+                        ref.read(restaurantListProvider.notifier).updateFilters(state.filters.copyWith(search: value));
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                VegToggle(
+                  value: state.filters.vegFilter,
+                  onChanged: (value) {
+                    ref.read(restaurantListProvider.notifier).updateFilters(state.filters.copyWith(vegFilter: value ?? ''));
+                  },
+                ),
+              ],
             ),
           ),
           Padding(
@@ -119,9 +135,51 @@ class _RestaurantListScreenState extends ConsumerState<RestaurantListScreen> {
             ),
           ),
           const SizedBox(height: 8),
+          _buildCategoryRow(state),
+          const SizedBox(height: 8),
           Expanded(child: _buildBody(state)),
         ],
       ),
+    );
+  }
+
+  Widget _buildCategoryRow(RestaurantListState state) {
+    final categoriesAsync = ref.watch(restaurantCategoriesProvider);
+    return categoriesAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (error, _) => const SizedBox.shrink(),
+      data: (categories) {
+        if (categories.isEmpty) return const SizedBox.shrink();
+        return SizedBox(
+          height: 36,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: categories.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final category = categories[index];
+              final selected = state.filters.category == category.slug;
+              return ChoiceChip(
+                label: Text(category.name),
+                selected: selected,
+                onSelected: (isSelected) {
+                  ref.read(restaurantListProvider.notifier).updateFilters(
+                        state.filters.copyWith(category: isSelected ? category.slug : ''),
+                      );
+                },
+                labelStyle: AppTextStyles.bodySmall.copyWith(
+                  color: selected ? Colors.white : AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+                selectedColor: AppColors.primary,
+                backgroundColor: AppColors.chipBackground,
+                side: BorderSide.none,
+              );
+            },
+          ),
+        );
+      },
     );
   }
 

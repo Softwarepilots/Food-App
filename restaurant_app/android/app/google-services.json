@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "851275274250",
+    "project_id": "garuda-food-app-3bc01",
+    "storage_bucket": "garuda-food-app-3bc01.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:851275274250:android:de3a6ac808f2877597a7f3",
+        "android_client_info": {
+          "package_name": "com.foodapp.foodapp_customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCq4Mpq3EjWhjDxkyyoY0jgIuG6ba3pdR0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:851275274250:android:3f61bd30efab990197a7f3",
+        "android_client_info": {
+          "package_name": "com.garuda.garuda_partner"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCq4Mpq3EjWhjDxkyyoY0jgIuG6ba3pdR0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

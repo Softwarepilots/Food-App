@@ -25,7 +25,15 @@ class _RestaurantSetupScreenState extends ConsumerState<RestaurantSetupScreen> {
   final _cityController = TextEditingController();
   final _latController = TextEditingController();
   final _lngController = TextEditingController();
+  final _panController = TextEditingController();
+  final _fssaiController = TextEditingController();
+  final _gstController = TextEditingController();
+  final _shopLicenseController = TextEditingController();
   bool _isSubmitting = false;
+
+  static final _panPattern = RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]$');
+  static final _fssaiPattern = RegExp(r'^\d{14}$');
+  static final _gstPattern = RegExp(r'^\d{2}[A-Z]{5}\d{4}[A-Z]\d[Z][A-Z\d]$');
 
   @override
   void dispose() {
@@ -35,6 +43,10 @@ class _RestaurantSetupScreenState extends ConsumerState<RestaurantSetupScreen> {
     _cityController.dispose();
     _latController.dispose();
     _lngController.dispose();
+    _panController.dispose();
+    _fssaiController.dispose();
+    _gstController.dispose();
+    _shopLicenseController.dispose();
     super.dispose();
   }
 
@@ -43,6 +55,21 @@ class _RestaurantSetupScreenState extends ConsumerState<RestaurantSetupScreen> {
   String? _decimal(String? v) {
     if (v == null || v.trim().isEmpty) return 'Required';
     return double.tryParse(v.trim()) == null ? 'Enter a valid number' : null;
+  }
+
+  String? _pan(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Required';
+    return _panPattern.hasMatch(v.trim().toUpperCase()) ? null : 'Format: ABCDE1234F';
+  }
+
+  String? _fssai(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Required';
+    return _fssaiPattern.hasMatch(v.trim()) ? null : 'Enter a valid 14-digit FSSAI number';
+  }
+
+  String? _gst(String? v) {
+    if (v == null || v.trim().isEmpty) return null; // optional
+    return _gstPattern.hasMatch(v.trim().toUpperCase()) ? null : 'Enter a valid 15-character GSTIN';
   }
 
   Future<void> _submit() async {
@@ -56,6 +83,10 @@ class _RestaurantSetupScreenState extends ConsumerState<RestaurantSetupScreen> {
             city: _cityController.text.trim(),
             latitude: double.parse(_latController.text.trim()),
             longitude: double.parse(_lngController.text.trim()),
+            panNumber: _panController.text.trim().toUpperCase(),
+            fssaiNumber: _fssaiController.text.trim(),
+            shopLicenseNumber: _shopLicenseController.text.trim(),
+            gstNumber: _gstController.text.trim().toUpperCase(),
           );
     } catch (e) {
       if (!mounted) return;
@@ -132,6 +163,40 @@ class _RestaurantSetupScreenState extends ConsumerState<RestaurantSetupScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 28),
+                Text('Business compliance', style: AppTextStyles.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  'Required to operate a food business in India — an admin verifies these before approving your restaurant.',
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _panController,
+                  textCapitalization: TextCapitalization.characters,
+                  validator: _pan,
+                  decoration: const InputDecoration(labelText: 'PAN number', hintText: 'ABCDE1234F'),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _fssaiController,
+                  keyboardType: TextInputType.number,
+                  validator: _fssai,
+                  decoration: const InputDecoration(labelText: 'FSSAI license number', hintText: '14-digit number'),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _shopLicenseController,
+                  validator: _required,
+                  decoration: const InputDecoration(labelText: 'Shop / trade license number'),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _gstController,
+                  textCapitalization: TextCapitalization.characters,
+                  validator: _gst,
+                  decoration: const InputDecoration(labelText: 'GST number (optional)'),
                 ),
                 const SizedBox(height: 28),
                 AppButton(label: 'Register restaurant', onPressed: _submit, isLoading: _isSubmitting),

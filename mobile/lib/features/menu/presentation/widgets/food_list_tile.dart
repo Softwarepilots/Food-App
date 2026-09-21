@@ -5,6 +5,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_network_image.dart';
 import '../../data/models/food_model.dart';
+import 'veg_indicator.dart';
 
 class FoodListTile extends StatelessWidget {
   final FoodModel food;
@@ -29,7 +30,7 @@ class FoodListTile extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      _VegIndicator(isVeg: food.isVeg),
+                      VegIndicator(isVeg: food.isVeg),
                       const SizedBox(width: 6),
                       if (food.isBestseller)
                         Container(
@@ -115,24 +116,6 @@ class FoodListTile extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _VegIndicator extends StatelessWidget {
-  final bool isVeg;
-
-  const _VegIndicator({required this.isVeg});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isVeg ? AppColors.vegGreen : AppColors.nonVegRed;
-    return Container(
-      width: 14,
-      height: 14,
-      decoration: BoxDecoration(border: Border.all(color: color, width: 1.2), borderRadius: BorderRadius.circular(3)),
-      padding: const EdgeInsets.all(2),
-      child: DecoratedBox(decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
     );
   }
 }

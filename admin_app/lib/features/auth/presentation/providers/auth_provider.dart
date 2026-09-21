@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/error/app_exception.dart';
+import '../../../../core/notifications/push_notification_provider.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
@@ -67,6 +70,7 @@ class AuthNotifier extends Notifier<AuthState> {
         return;
       }
       state = AuthState.authenticated(user);
+      unawaited(ref.read(pushNotificationServiceProvider).registerDevice());
     } catch (_) {
       await storage.clear();
       state = const AuthState.unauthenticated();
@@ -86,9 +90,11 @@ class AuthNotifier extends Notifier<AuthState> {
       throw const UnauthorizedException('This account does not have admin access.');
     }
     state = AuthState.authenticated(result.user);
+    unawaited(ref.read(pushNotificationServiceProvider).registerDevice());
   }
 
   Future<void> logout() async {
+    await ref.read(pushNotificationServiceProvider).unregisterDevice();
     await ref.read(authRepositoryProvider).logout();
     state = const AuthState.unauthenticated();
   }

@@ -10,7 +10,7 @@ from apps.common.exceptions import ApplicationError
 from apps.common.pagination import paginated_response
 from apps.common.response import APIResponse
 
-from .models import Address, OTPPurpose, User
+from .models import Address, OTPPurpose, User, UserRole
 from .permissions import IsAdminRole
 from .serializers import (
     AddressSerializer,
@@ -310,6 +310,75 @@ class OTPLoginVerifyView(APIView):
             user.full_name = full_name
             update_fields.append("full_name")
         user.save(update_fields=update_fields)
+
+        token = CustomTokenObtainPairSerializer.get_token(user)
+        return APIResponse(
+            data={
+                "user": UserSerializer(user).data,
+                "access": str(token.access_token),
+                "refresh": str(token),
+            }
+        )
+
+
+def _existing_partner_user_or_404(phone_number):
+    """Unlike the customer OTP flow, this deliberately does NOT silently
+    provision a new account — logging into the partner app requires an
+    account that already exists (self-registered as an owner, or invited
+    as staff), so a wrong/unknown number gets a clear error instead of
+    quietly creating an orphaned restaurant-owner-role account with no
+    restaurant attached."""
+    user = User.objects.filter(phone_number=phone_number, role=UserRole.RESTAURANT_OWNER).first()
+    if not user:
+        raise ApplicationError(
+            "No partner account found for this number. Register from the partner app first.",
+            code="partner_not_found",
+            status_code=404,
+        )
+    return user
+
+
+@extend_schema(
+    tags=["Auth"],
+    summary="Request a login OTP for an existing restaurant partner account",
+    description="Unlike /auth/otp/request/, this never provisions a new account — the phone number "
+    "must already belong to a restaurant owner or an invited staff member.",
+)
+class PartnerOTPRequestView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "otp"
+
+    def post(self, request):
+        serializer = OTPLoginRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone_number = serializer.validated_data["phone_number"]
+
+        user = _existing_partner_user_or_404(phone_number)
+        _, code = OTPService.generate(user, OTPPurpose.LOGIN, phone_number)
+        send_sms(phone_number, f"Your Garuda Partner login code is {code}. It expires in {settings.OTP_EXPIRY_MINUTES} minutes.")
+
+        payload = {"detail": "OTP sent."}
+        if settings.DEBUG:
+            payload["debug_otp"] = code
+        return APIResponse(data=payload)
+
+
+@extend_schema(tags=["Auth"], summary="Verify a restaurant partner login OTP and receive tokens")
+class PartnerOTPVerifyView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "otp"
+
+    def post(self, request):
+        serializer = OTPLoginVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone_number = serializer.validated_data["phone_number"]
+
+        user = _existing_partner_user_or_404(phone_number)
+        OTPService.verify(user, OTPPurpose.LOGIN, serializer.validated_data["otp"])
+        user.is_phone_verified = True
+        user.save(update_fields=["is_phone_verified"])
 
         token = CustomTokenObtainPairSerializer.get_token(user)
         return APIResponse(

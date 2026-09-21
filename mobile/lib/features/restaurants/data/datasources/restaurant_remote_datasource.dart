@@ -18,6 +18,7 @@ class RestaurantRemoteDataSource {
     double? lat,
     double? lng,
     bool onlyOpen = false,
+    String? vegFilter,
   }) async {
     try {
       final response = await _dio.get(ApiConstants.restaurants, queryParameters: {
@@ -29,6 +30,7 @@ class RestaurantRemoteDataSource {
         if (lat != null) 'lat': lat,
         if (lng != null) 'lng': lng,
         if (onlyOpen) 'only_open': 'true',
+        if (vegFilter != null && vegFilter.isNotEmpty) 'veg_filter': vegFilter,
       });
       return PaginatedResult.fromJson(
         response.data as Map<String, dynamic>,

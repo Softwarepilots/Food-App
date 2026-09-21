@@ -18,6 +18,7 @@ class RestaurantRepositoryImpl implements RestaurantRepository {
     double? lat,
     double? lng,
     bool onlyOpen = false,
+    String? vegFilter,
   }) {
     return _remoteDataSource.getRestaurants(
       page: page,
@@ -28,6 +29,7 @@ class RestaurantRepositoryImpl implements RestaurantRepository {
       lat: lat,
       lng: lng,
       onlyOpen: onlyOpen,
+      vegFilter: vegFilter,
     );
   }
 

@@ -9,7 +9,16 @@ from django.utils.text import slugify
 
 from apps.accounts.models import UserRole
 from apps.common.models import BaseModel
-from apps.common.validators import latitude_validators, longitude_validators, percentage_validators, rating_validators
+from apps.common.validators import (
+    fssai_number_validator,
+    gst_number_validator,
+    latitude_validators,
+    longitude_validators,
+    pan_number_validator,
+    percentage_validators,
+    rating_validators,
+    shop_license_number_validator,
+)
 
 
 class RestaurantCategory(BaseModel):
@@ -87,6 +96,34 @@ class Restaurant(BaseModel):
         "accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_restaurants"
     )
 
+    # Compliance / payout details — self-reported by the partner, verified out
+    # of band (see RestaurantDocument for the supporting certificate uploads).
+    # `blank=True` at the model level so existing rows and admin-created
+    # restaurants aren't forced to backfill a value; PAN/FSSAI/shop license
+    # are made *required* for new registrations at the serializer level
+    # instead (`RestaurantCreateUpdateSerializer`), not here — see there for
+    # why. GST stays optional even at registration (small businesses under
+    # the threshold don't need one).
+    pan_number = models.CharField(max_length=10, blank=True, validators=[pan_number_validator])
+    fssai_number = models.CharField(max_length=14, blank=True, validators=[fssai_number_validator])
+    gst_number = models.CharField(max_length=15, blank=True, validators=[gst_number_validator])
+    shop_license_number = models.CharField(max_length=30, blank=True, validators=[shop_license_number_validator])
+    bank_account_holder_name = models.CharField(max_length=150, blank=True)
+    bank_account_number = models.CharField(max_length=30, blank=True)
+    bank_ifsc_code = models.CharField(max_length=11, blank=True)
+
+    minimum_order_value = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal("0.00"), validators=[MinValueValidator(Decimal("0"))]
+    )
+    packaging_policy = models.TextField(blank=True)
+
+    # Temporary pause (independent of the owner deliberately taking the
+    # restaurant offline via `is_accepting_orders`) — `paused_until` of null
+    # means "until manually resumed". Evaluated lazily wherever availability
+    # is checked, rather than needing a scheduled job to flip the flag back.
+    pause_reason = models.CharField(max_length=30, blank=True)
+    paused_until = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = "restaurants_restaurant"
         verbose_name = "Restaurant"
@@ -125,11 +162,20 @@ class Restaurant(BaseModel):
         return current_time >= hours.opening_time or current_time <= hours.closing_time
 
     @property
+    def is_paused_now(self):
+        """A pause with a `paused_until` in the past has lapsed — treated as
+        resumed without needing a scheduled job to flip `is_accepting_orders`
+        back. A pause with no `paused_until` stays paused until resumed manually."""
+        if self.is_accepting_orders:
+            return False
+        return self.paused_until is None or self.paused_until > timezone.now()
+
+    @property
     def is_orderable(self):
         return (
             self.approval_status == RestaurantApprovalStatus.APPROVED
             and self.is_active
-            and self.is_accepting_orders
+            and not self.is_paused_now
             and self.is_open_now
         )
 
@@ -139,7 +185,7 @@ class Restaurant(BaseModel):
             return self.approval_status
         if not self.is_active:
             return "inactive"
-        if not self.is_accepting_orders:
+        if self.is_paused_now:
             return "paused"
         if not self.is_open_now:
             return "closed"
@@ -324,3 +370,53 @@ class Offer(BaseModel):
     def is_valid_now(self):
         now = timezone.now()
         return self.is_active and self.valid_from <= now <= self.valid_until
+
+
+class RestaurantStaffRole(models.TextChoices):
+    MANAGER = "manager", "Manager"
+    STAFF = "staff", "Staff"
+
+
+class RestaurantStaff(BaseModel):
+    """A user invited onto a restaurant's team below owner level. The owner
+    themselves is never a row here — `Restaurant.owner` already is that;
+    this table only holds MANAGER/STAFF memberships. See
+    `apps.restaurants.permissions.get_partner_role` for how a caller's
+    effective role on a restaurant (owner/manager/staff/None) is resolved."""
+
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="staff_members")
+    user = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="restaurant_staff_memberships",
+        limit_choices_to={"role": UserRole.RESTAURANT_OWNER},
+    )
+    role = models.CharField(max_length=10, choices=RestaurantStaffRole.choices)
+    is_active = models.BooleanField(default=True)
+    invited_by = models.ForeignKey(
+        "accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+
+    class Meta:
+        db_table = "restaurants_staff"
+        verbose_name = "Restaurant Staff"
+        verbose_name_plural = "Restaurant Staff"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["restaurant", "user"],
+                condition=models.Q(is_deleted=False),
+                name="unique_staff_per_restaurant",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["restaurant", "is_active"]),
+            models.Index(fields=["user"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.full_name} - {self.get_role_display()} at {self.restaurant.name}"
+
+    def clean(self):
+        if self.restaurant_id and self.user_id and self.restaurant.owner_id == self.user_id:
+            raise ValidationError("The restaurant's owner doesn't need a separate staff row.")

@@ -39,6 +39,15 @@ class OrderDetailNotifier extends FamilyNotifier<AsyncValue<OrderModel>, String>
     _pollTimer?.cancel();
     state = AsyncValue.data(cancelled);
   }
+
+  Future<void> submitReview({required int rating, String? comment, int? deliveryRating}) {
+    return ref.read(orderRepositoryProvider).submitReview(
+          arg,
+          rating: rating,
+          comment: comment,
+          deliveryRating: deliveryRating,
+        );
+  }
 }
 
 final orderDetailProvider = NotifierProvider.family<OrderDetailNotifier, AsyncValue<OrderModel>, String>(

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/menu/presentation/screens/menu_list_screen.dart';
 import '../../features/orders/presentation/screens/order_list_screen.dart';
 import '../../features/restaurant/presentation/providers/restaurant_provider.dart';
@@ -58,7 +59,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         return currentPath == RoutePaths.setup ? null : RoutePaths.setup;
       }
       if (currentPath == RoutePaths.splash || isAuthRoute || currentPath == RoutePaths.setup) {
-        return RoutePaths.orders;
+        return RoutePaths.dashboard;
       }
       return null;
     },
@@ -74,6 +75,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => MainShell(navigationShell: navigationShell),
         branches: [
+          StatefulShellBranch(routes: [GoRoute(path: RoutePaths.dashboard, builder: (context, state) => const DashboardScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: RoutePaths.orders, builder: (context, state) => const OrderListScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: RoutePaths.menu, builder: (context, state) => const MenuListScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: RoutePaths.settings, builder: (context, state) => const RestaurantSettingsScreen())]),

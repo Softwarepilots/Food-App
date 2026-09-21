@@ -1,20 +1,64 @@
+from datetime import timedelta
 from decimal import Decimal
 
-from django.db import transaction
+from django.conf import settings
+from django.db import models, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from apps.accounts.models import Address
+from apps.accounts.models import Address, User
 from apps.common.exceptions import ApplicationError
 from apps.menu.models import Food, FoodAddon, FoodVariant
 from apps.menu.services import calculate_price
+from apps.notifications import services as notification_services
+from apps.notifications.models import NotificationType
 from apps.payments.models import Payment
 from apps.payments.models import PaymentMethod as PaymentMethodChoice
 from apps.restaurants.models import Restaurant, RestaurantApprovalStatus
 
-from .models import Order, OrderItem, OrderStatus
+from .models import Order, OrderItem, OrderStatus, Review
 
 FLAT_DELIVERY_FEE = Decimal("30.00")
+
+
+def _restaurant_team_users(restaurant):
+    """Owner + active staff — everyone on this restaurant's side who should
+    hear about a new order landing."""
+    staff_user_ids = restaurant.staff_members.filter(is_active=True).values_list("user_id", flat=True)
+    return User.objects.filter(models.Q(pk=restaurant.owner_id) | models.Q(pk__in=staff_user_ids))
+
+
+_STATUS_NOTIFICATION_COPY = {
+    OrderStatus.ACCEPTED: ("Order accepted", "{restaurant} has accepted your order #{order_number}."),
+    OrderStatus.PREPARING: ("Order in the kitchen", "{restaurant} has started preparing your order #{order_number}."),
+    OrderStatus.READY_FOR_PICKUP: ("Ready for pickup", "Your order #{order_number} is ready and waiting for a rider."),
+    OrderStatus.OUT_FOR_DELIVERY: ("On its way", "Your order #{order_number} is out for delivery."),
+    OrderStatus.DELIVERED: ("Delivered", "Your order #{order_number} has been delivered. Enjoy!"),
+    # Only reached via update_order_status (restaurant-initiated) — a
+    # customer-initiated cancel goes through cancel_order() instead, which
+    # notifies the restaurant, not the customer, since they already know.
+    OrderStatus.CANCELLED: ("Order rejected", "{restaurant} was unable to accept your order #{order_number}."),
+}
+
+
+def notify_order_status_change(order, new_status):
+    """Pushes the customer a status update. Shared between this module's
+    `update_order_status` (restaurant-driven transitions) and
+    apps.delivery.services (rider-driven OUT_FOR_DELIVERY/DELIVERED) so every
+    status change goes through one notification path instead of each caller
+    reinventing it."""
+    copy = _STATUS_NOTIFICATION_COPY.get(new_status)
+    if not copy:
+        return
+    title, body_template = copy
+    notification_services.notify_user(
+        order.user,
+        title=title,
+        body=body_template.format(restaurant=order.restaurant.name, order_number=order.order_number),
+        notification_type=NotificationType.ORDER_UPDATE,
+        order=order,
+        data={"order_id": str(order.id), "type": f"order_{new_status}"},
+    )
 
 
 def _build_delivery_address_text(address):
@@ -106,6 +150,7 @@ def place_order(user, *, restaurant_id, address_id, items_payload, payment_metho
         tax_amount=tax_amount,
         discount_amount=discount_amount,
         total_amount=total_amount,
+        accept_deadline=timezone.now() + timedelta(seconds=settings.ORDER_ACCEPT_TIMEOUT_SECONDS),
     )
 
     for item in priced_items:
@@ -116,7 +161,47 @@ def place_order(user, *, restaurant_id, address_id, items_payload, payment_metho
     )
     Payment.objects.create(order=order, method=payment_method_value, amount=total_amount)
 
+    notification_services.notify_users(
+        _restaurant_team_users(restaurant),
+        title="New order received",
+        body=f"Order #{order.order_number} just came in — {len(priced_items)} item(s).",
+        notification_type=NotificationType.ORDER_UPDATE,
+        order=order,
+        data={"order_id": str(order.id), "type": "new_order"},
+    )
+
     return order
+
+
+def auto_reject_expired_orders(queryset=None):
+    """Lazy-expiry sweep (no Celery/cron): transitions any still-PLACED order
+    past its `accept_deadline` to CANCELLED. Reuses the existing CANCELLED
+    status rather than adding a new AUTO_REJECTED enum value, since neither
+    Flutter app's OrderStatus enum knows about one — this keeps the change
+    backward-compatible at the cost of not distinguishing "restaurant
+    rejected" from "restaurant never responded" in the status itself (the
+    cancellation_reason still records which happened).
+    Called opportunistically from order list/detail views before serializing,
+    same pattern as Restaurant.is_paused_now."""
+    base = queryset if queryset is not None else Order.objects.all()
+    expired = list(base.filter(status=OrderStatus.PLACED, accept_deadline__lt=timezone.now()).select_related("user"))
+    if not expired:
+        return
+    now = timezone.now()
+    for order in expired:
+        order.status = OrderStatus.CANCELLED
+        order.cancellation_reason = "Auto-rejected: restaurant did not respond in time."
+        order.cancelled_at = now
+    Order.objects.bulk_update(expired, ["status", "cancellation_reason", "cancelled_at"])
+    for order in expired:
+        notification_services.notify_user(
+            order.user,
+            title="Order cancelled",
+            body=f"Sorry — order #{order.order_number} wasn't accepted in time and was cancelled.",
+            notification_type=NotificationType.ORDER_UPDATE,
+            order=order,
+            data={"order_id": str(order.id), "type": "order_auto_rejected"},
+        )
 
 
 def cancel_order(order, user, reason=""):
@@ -129,6 +214,15 @@ def cancel_order(order, user, reason=""):
     order.cancellation_reason = reason
     order.cancelled_at = timezone.now()
     order.save(update_fields=["status", "cancellation_reason", "cancelled_at"])
+
+    notification_services.notify_users(
+        _restaurant_team_users(order.restaurant),
+        title="Order cancelled",
+        body=f"The customer cancelled order #{order.order_number}.",
+        notification_type=NotificationType.ORDER_UPDATE,
+        order=order,
+        data={"order_id": str(order.id), "type": "order_cancelled_by_customer"},
+    )
     return order
 
 
@@ -144,7 +238,7 @@ ALLOWED_STATUS_TRANSITIONS = {
 }
 
 
-def update_order_status(order, new_status):
+def update_order_status(order, new_status, *, prep_time_minutes=None):
     allowed = ALLOWED_STATUS_TRANSITIONS.get(order.status, set())
     if new_status not in allowed:
         raise ApplicationError(
@@ -156,7 +250,8 @@ def update_order_status(order, new_status):
     update_fields = ["status"]
     if new_status == OrderStatus.ACCEPTED:
         order.accepted_at = now
-        update_fields.append("accepted_at")
+        order.estimated_prep_minutes = prep_time_minutes
+        update_fields += ["accepted_at", "estimated_prep_minutes"]
     elif new_status == OrderStatus.DELIVERED:
         order.delivered_at = now
         update_fields.append("delivered_at")
@@ -164,4 +259,50 @@ def update_order_status(order, new_status):
         order.cancelled_at = now
         update_fields.append("cancelled_at")
     order.save(update_fields=update_fields)
+    notify_order_status_change(order, new_status)
     return order
+
+
+def submit_review(order, user, *, rating, comment="", delivery_rating=None):
+    """One review per order — resubmitting updates it (matches the
+    `unique_review_per_order` constraint), same pattern as FoodReview."""
+    if order.user_id != user.id:
+        raise ApplicationError("You can only review your own orders.", code="not_your_order", status_code=403)
+    if order.status != OrderStatus.DELIVERED:
+        raise ApplicationError("You can only review an order after it's delivered.", code="order_not_delivered")
+
+    # A rider rating only makes sense if this order actually had one — silently
+    # drop it rather than erroring, since the client can't always know in
+    # advance whether a delivery partner was assigned.
+    has_delivery_partner = order.delivery_partner_id is not None
+    review, created = Review.objects.update_or_create(
+        user=user,
+        order=order,
+        defaults={
+            "restaurant": order.restaurant,
+            "rating": rating,
+            "comment": comment,
+            "delivery_partner_id": order.delivery_partner_id if has_delivery_partner else None,
+            "delivery_rating": delivery_rating if has_delivery_partner else None,
+        },
+    )
+
+    notification_services.notify_users(
+        _restaurant_team_users(order.restaurant),
+        title="New review",
+        body=f"{user.full_name} left a {rating}★ review for order #{order.order_number}.",
+        notification_type=NotificationType.ORDER_UPDATE,
+        order=order,
+        data={"order_id": str(order.id), "type": "new_review"},
+    )
+    if has_delivery_partner and review.delivery_rating is not None:
+        notification_services.notify_user(
+            order.delivery_partner.user,
+            title="New delivery review",
+            body=f"{user.full_name} rated your delivery {review.delivery_rating}★ for order #{order.order_number}.",
+            notification_type=NotificationType.ORDER_UPDATE,
+            order=order,
+            data={"order_id": str(order.id), "type": "new_delivery_review"},
+        )
+
+    return review, created

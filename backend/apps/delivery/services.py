@@ -3,6 +3,7 @@ from django.utils import timezone
 
 from apps.common.exceptions import ApplicationError
 from apps.orders.models import Order, OrderStatus
+from apps.orders.services import notify_order_status_change
 
 from .models import DeliveryPartnerStatus
 
@@ -19,6 +20,7 @@ def accept_order(order, partner):
     order.delivery_partner = partner
     order.status = OrderStatus.OUT_FOR_DELIVERY
     order.save(update_fields=["delivery_partner", "status"])
+    notify_order_status_change(order, OrderStatus.OUT_FOR_DELIVERY)
 
     partner.status = DeliveryPartnerStatus.ON_DELIVERY
     partner.save(update_fields=["status"])
@@ -39,6 +41,7 @@ def mark_delivered(order, partner):
     # This save fires apps.delivery.signals.increment_delivery_partner_stats,
     # which atomically bumps partner.total_deliveries — don't also do it here.
     order.save(update_fields=["status", "delivered_at"])
+    notify_order_status_change(order, OrderStatus.DELIVERED)
 
     partner.status = DeliveryPartnerStatus.ONLINE
     partner.save(update_fields=["status"])

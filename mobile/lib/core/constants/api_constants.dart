@@ -46,7 +46,12 @@ class ApiConstants {
   static String orderDetail(String id) => '/orders/$id/';
   static String orderStatus(String id) => '/orders/$id/status/';
   static String orderCancel(String id) => '/orders/$id/cancel/';
+  static String orderReview(String id) => '/orders/$id/review/';
 
   // Payments
   static const String paymentVerify = '/payments/razorpay/verify/';
+
+  // Notifications
+  static const String deviceRegister = '/notifications/devices/register/';
+  static const String deviceUnregister = '/notifications/devices/unregister/';
 }

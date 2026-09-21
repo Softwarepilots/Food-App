@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../data/models/order_model.dart';
+import 'accept_countdown.dart';
 
 class OrderCard extends StatelessWidget {
   final OrderModel order;
@@ -52,7 +53,15 @@ class OrderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Text(Formatters.relative(order.createdAt), style: AppTextStyles.caption),
+          Row(
+            children: [
+              Text(Formatters.relative(order.createdAt), style: AppTextStyles.caption),
+              if (order.status == OrderStatus.placed && order.acceptDeadline != null) ...[
+                const Spacer(),
+                AcceptCountdown(deadline: order.acceptDeadline!),
+              ],
+            ],
+          ),
           const SizedBox(height: 10),
           if (order.customerName.isNotEmpty || order.customerPhone.isNotEmpty) ...[
             Row(
@@ -91,6 +100,16 @@ class OrderCard extends StatelessWidget {
           if (order.notes != null && order.notes!.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text('Note: ${order.notes}', style: AppTextStyles.caption.copyWith(fontStyle: FontStyle.italic)),
+          ],
+          if (order.estimatedPrepMinutes != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.timer_outlined, size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text('Preparation time: ${order.estimatedPrepMinutes} min', style: AppTextStyles.caption),
+              ],
+            ),
           ],
           const SizedBox(height: 8),
           Row(

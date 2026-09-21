@@ -20,3 +20,13 @@ LOGGING["loggers"]["apps"]["level"] = "DEBUG"
 
 # No real SMTP credentials needed locally — verification/reset emails print to the console.
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# Production-tuned throttle rates (e.g. 5 OTPs/hour) make repeated manual
+# QA passes against a single local tester account hit "throttled" constantly.
+# Loosen them locally — this is a single-user dev box, not shared traffic.
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+    "register": "100/hour",
+    "login": "200/hour",
+    "otp": "100/hour",
+    "password_reset": "100/hour",
+}

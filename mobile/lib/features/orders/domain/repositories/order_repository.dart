@@ -15,4 +15,6 @@ abstract class OrderRepository {
   Future<OrderModel> getOrderDetail(String id);
 
   Future<OrderModel> cancelOrder(String id, {String? reason});
+
+  Future<void> submitReview(String orderId, {required int rating, String? comment, int? deliveryRating});
 }

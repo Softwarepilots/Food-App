@@ -35,4 +35,8 @@ class ApiConstants {
   static const String myDeliveries = '/delivery/orders/mine/';
   static String acceptOrder(String orderId) => '/delivery/orders/$orderId/accept/';
   static String deliverOrder(String orderId) => '/delivery/orders/$orderId/deliver/';
+
+  // Notifications
+  static const String deviceRegister = '/notifications/devices/register/';
+  static const String deviceUnregister = '/notifications/devices/unregister/';
 }

@@ -44,4 +44,8 @@ class ApiConstants {
 
   // Orders
   static const String adminOrders = '/orders/admin/all/';
+
+  // Notifications
+  static const String deviceRegister = '/notifications/devices/register/';
+  static const String deviceUnregister = '/notifications/devices/unregister/';
 }
