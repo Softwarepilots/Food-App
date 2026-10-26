@@ -21,9 +21,12 @@ class OrderRemoteDataSource {
     }
   }
 
-  Future<OrderModel> updateStatus(String orderId, OrderStatus status) async {
+  Future<OrderModel> updateStatus(String orderId, OrderStatus status, {int? prepTimeMinutes}) async {
     try {
-      final response = await _dio.patch(ApiConstants.orderStatus(orderId), data: {'status': status.apiValue});
+      final response = await _dio.patch(ApiConstants.orderStatus(orderId), data: {
+        'status': status.apiValue,
+        if (prepTimeMinutes != null) 'prep_time_minutes': prepTimeMinutes,
+      });
       return OrderModel.fromJson(unwrapData(response) as Map<String, dynamic>);
     } on DioException catch (e) {
       throw mapDioExceptionToAppException(e);

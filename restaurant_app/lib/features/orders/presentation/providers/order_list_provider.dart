@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/error/failure.dart';
@@ -36,6 +37,8 @@ class OrderListState extends Equatable {
 /// Polls the owner's incoming orders on an interval so new orders and
 /// customer cancellations show up without a manual pull-to-refresh.
 class OrderListNotifier extends Notifier<OrderListState> {
+  Set<String>? _lastSeenPlacedIds;
+
   @override
   OrderListState build() {
     Future.microtask(refresh);
@@ -48,14 +51,29 @@ class OrderListNotifier extends Notifier<OrderListState> {
     state = state.copyWith(isLoading: true, clearFailure: true);
     try {
       final result = await ref.read(orderRemoteDataSourceProvider).getRestaurantOrders();
+      _notifyIfNewOrders(result.items);
       state = state.copyWith(orders: result.items, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, failure: Failure.fromException(e));
     }
   }
 
-  Future<void> advanceStatus(String orderId, OrderStatus newStatus) async {
-    final updated = await ref.read(orderRemoteDataSourceProvider).updateStatus(orderId, newStatus);
+  /// Plays an alert sound when a poll tick turns up an order that wasn't
+  /// there last tick — skipped on the very first load so opening the app
+  /// doesn't blast a sound for orders that were already sitting there.
+  void _notifyIfNewOrders(List<OrderModel> orders) {
+    final placedIds = orders.where((o) => o.status == OrderStatus.placed).map((o) => o.id).toSet();
+    final previous = _lastSeenPlacedIds;
+    if (previous != null && placedIds.difference(previous).isNotEmpty) {
+      SystemSound.play(SystemSoundType.alert);
+    }
+    _lastSeenPlacedIds = placedIds;
+  }
+
+  Future<void> advanceStatus(String orderId, OrderStatus newStatus, {int? prepTimeMinutes}) async {
+    final updated = await ref
+        .read(orderRemoteDataSourceProvider)
+        .updateStatus(orderId, newStatus, prepTimeMinutes: prepTimeMinutes);
     state = state.copyWith(
       orders: [for (final order in state.orders) if (order.id == orderId) updated else order],
     );

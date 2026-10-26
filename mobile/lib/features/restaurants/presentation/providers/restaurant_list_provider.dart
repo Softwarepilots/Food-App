@@ -13,6 +13,7 @@ class RestaurantListFilters extends Equatable {
   final double? lat;
   final double? lng;
   final bool onlyOpen;
+  final String? vegFilter;
 
   const RestaurantListFilters({
     this.search,
@@ -22,6 +23,7 @@ class RestaurantListFilters extends Equatable {
     this.lat,
     this.lng,
     this.onlyOpen = false,
+    this.vegFilter,
   });
 
   RestaurantListFilters copyWith({
@@ -32,6 +34,7 @@ class RestaurantListFilters extends Equatable {
     double? lat,
     double? lng,
     bool? onlyOpen,
+    String? vegFilter,
   }) {
     return RestaurantListFilters(
       search: search ?? this.search,
@@ -41,11 +44,12 @@ class RestaurantListFilters extends Equatable {
       lat: lat ?? this.lat,
       lng: lng ?? this.lng,
       onlyOpen: onlyOpen ?? this.onlyOpen,
+      vegFilter: vegFilter ?? this.vegFilter,
     );
   }
 
   @override
-  List<Object?> get props => [search, category, cuisine, city, lat, lng, onlyOpen];
+  List<Object?> get props => [search, category, cuisine, city, lat, lng, onlyOpen, vegFilter];
 }
 
 class RestaurantListState extends Equatable {
@@ -111,6 +115,7 @@ class RestaurantListNotifier extends Notifier<RestaurantListState> {
             lat: state.filters.lat,
             lng: state.filters.lng,
             onlyOpen: state.filters.onlyOpen,
+            vegFilter: state.filters.vegFilter,
           );
       state = state.copyWith(
         restaurants: result.items,
@@ -137,6 +142,7 @@ class RestaurantListNotifier extends Notifier<RestaurantListState> {
             lat: state.filters.lat,
             lng: state.filters.lng,
             onlyOpen: state.filters.onlyOpen,
+            vegFilter: state.filters.vegFilter,
           );
       state = state.copyWith(
         restaurants: [...state.restaurants, ...result.items],

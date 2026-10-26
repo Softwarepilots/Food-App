@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, status
 from rest_framework.views import APIView
@@ -12,14 +14,25 @@ from apps.common.pagination import paginated_response
 from apps.common.response import APIResponse
 
 from . import services
-from .models import Favorite, Restaurant, RestaurantApprovalStatus, RestaurantCategory, RestaurantDocument, RestaurantImage
-from .permissions import IsRestaurantOwnerOfObject, IsRestaurantOwnerOrAdmin
+from .models import (
+    Favorite,
+    Restaurant,
+    RestaurantApprovalStatus,
+    RestaurantCategory,
+    RestaurantDocument,
+    RestaurantImage,
+    RestaurantStaff,
+    RestaurantStaffRole,
+)
+from .permissions import IsRestaurantOwnerOfObject, IsRestaurantOwnerOrAdmin, IsRestaurantTeamMember, get_partner_role
 from .serializers import (
     BusinessHoursBulkUpdateSerializer,
     BusinessHoursEntrySerializer,
     RestaurantCategorySerializer,
     RestaurantCreateUpdateSerializer,
+    RestaurantDashboardSerializer,
     RestaurantDetailSerializer,
+    RestaurantPartnerDetailSerializer,
     RestaurantDocumentReviewSerializer,
     RestaurantDocumentSerializer,
     RestaurantDocumentUploadSerializer,
@@ -27,8 +40,12 @@ from .serializers import (
     RestaurantImageUpdateSerializer,
     RestaurantImageUploadSerializer,
     RestaurantListSerializer,
+    RestaurantPauseSerializer,
     RestaurantRatingBreakdownSerializer,
     RestaurantRejectSerializer,
+    RestaurantStaffInviteSerializer,
+    RestaurantStaffSerializer,
+    RestaurantStaffUpdateSerializer,
     RestaurantStatusUpdateSerializer,
 )
 
@@ -107,6 +124,7 @@ class RestaurantListCreateView(APIView):
             OpenApiParameter("cuisine", str), OpenApiParameter("search", str),
             OpenApiParameter("lat", float), OpenApiParameter("lng", float),
             OpenApiParameter("only_open", bool),
+            OpenApiParameter("veg_filter", str, description="'veg' or 'non_veg' — restaurants with at least one matching menu item"),
         ],
     )
     def get(self, request):
@@ -121,6 +139,7 @@ class RestaurantListCreateView(APIView):
             lat=params.get("lat"),
             lng=params.get("lng"),
             only_open=params.get("only_open") in ("true", "1"),
+            veg_filter=params.get("veg_filter"),
         )
         return paginated_response(request, self, restaurants, RestaurantListSerializer, context={"request": request})
 
@@ -129,7 +148,7 @@ class RestaurantListCreateView(APIView):
         serializer = RestaurantCreateUpdateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         restaurant = serializer.save()
-        return APIResponse(data=RestaurantDetailSerializer(restaurant).data, status=status.HTTP_201_CREATED)
+        return APIResponse(data=RestaurantPartnerDetailSerializer(restaurant).data, status=status.HTTP_201_CREATED)
 
 
 @extend_schema(tags=["Restaurants"], summary="List the current restaurant owner's own restaurants")
@@ -138,7 +157,7 @@ class MyRestaurantsView(APIView):
 
     def get(self, request):
         queryset = Restaurant.all_objects.filter(owner=request.user, is_deleted=False)
-        return paginated_response(request, self, queryset, RestaurantDetailSerializer)
+        return paginated_response(request, self, queryset, RestaurantPartnerDetailSerializer)
 
 
 @extend_schema(tags=["Restaurants"], summary="List restaurants awaiting approval (admin only)")
@@ -147,7 +166,7 @@ class PendingApprovalListView(APIView):
 
     def get(self, request):
         queryset = Restaurant.objects.filter(approval_status=RestaurantApprovalStatus.PENDING)
-        return paginated_response(request, self, queryset, RestaurantDetailSerializer)
+        return paginated_response(request, self, queryset, RestaurantPartnerDetailSerializer)
 
 
 @extend_schema(tags=["Restaurants"], summary="List every restaurant regardless of approval/active state (admin only)")
@@ -159,7 +178,7 @@ class AdminRestaurantListView(APIView):
         approval_status = request.query_params.get("approval_status")
         if approval_status:
             queryset = queryset.filter(approval_status=approval_status)
-        return paginated_response(request, self, queryset, RestaurantDetailSerializer)
+        return paginated_response(request, self, queryset, RestaurantPartnerDetailSerializer)
 
 
 @extend_schema(tags=["Restaurants"])
@@ -183,7 +202,7 @@ class RestaurantDetailView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return APIResponse(data=RestaurantDetailSerializer(restaurant).data)
+        return APIResponse(data=RestaurantPartnerDetailSerializer(restaurant).data)
 
     @extend_schema(summary="Soft-delete a restaurant (owner or admin)")
     def delete(self, request, pk):
@@ -200,7 +219,7 @@ class RestaurantApproveView(APIView):
     def post(self, request, pk):
         restaurant = get_object_or_404(Restaurant, pk=pk)
         restaurant = services.approve_restaurant(restaurant, request.user)
-        return APIResponse(data=RestaurantDetailSerializer(restaurant).data)
+        return APIResponse(data=RestaurantPartnerDetailSerializer(restaurant).data)
 
 
 @extend_schema(tags=["Restaurants"], summary="Reject a pending restaurant (admin only)")
@@ -212,7 +231,7 @@ class RestaurantRejectView(APIView):
         serializer = RestaurantRejectSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         restaurant = services.reject_restaurant(restaurant, request.user, serializer.validated_data["reason"])
-        return APIResponse(data=RestaurantDetailSerializer(restaurant).data)
+        return APIResponse(data=RestaurantPartnerDetailSerializer(restaurant).data)
 
 
 @extend_schema(tags=["Restaurants"], summary="Toggle a restaurant's active/accepting-orders status (owner only)")
@@ -225,7 +244,121 @@ class RestaurantStatusView(APIView):
         serializer = RestaurantStatusUpdateSerializer(restaurant, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return APIResponse(data=RestaurantDetailSerializer(restaurant).data)
+        return APIResponse(data=RestaurantPartnerDetailSerializer(restaurant).data)
+
+
+@extend_schema(tags=["Restaurants"], summary="Temporarily pause a restaurant (owner/manager)")
+class RestaurantPauseView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
+    min_partner_role = RestaurantStaffRole.MANAGER
+
+    def post(self, request, pk):
+        restaurant = get_object_or_404(Restaurant, pk=pk)
+        self.check_object_permissions(request, restaurant)
+        serializer = RestaurantPauseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        restaurant = services.pause_restaurant(
+            restaurant,
+            reason=serializer.validated_data["reason"],
+            duration_minutes=serializer.validated_data.get("duration_minutes"),
+        )
+        return APIResponse(data=RestaurantPartnerDetailSerializer(restaurant).data)
+
+
+@extend_schema(tags=["Restaurants"], summary="Resume a paused restaurant (owner/manager)")
+class RestaurantResumeView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
+    min_partner_role = RestaurantStaffRole.MANAGER
+
+    def post(self, request, pk):
+        restaurant = get_object_or_404(Restaurant, pk=pk)
+        self.check_object_permissions(request, restaurant)
+        restaurant = services.resume_restaurant(restaurant)
+        return APIResponse(data=RestaurantPartnerDetailSerializer(restaurant).data)
+
+
+@extend_schema(tags=["Restaurant Staff"], summary="List or invite team members onto a restaurant (owner only)")
+class RestaurantStaffListCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+
+    def get(self, request, pk):
+        restaurant = get_object_or_404(Restaurant, pk=pk)
+        self.check_object_permissions(request, restaurant)
+        queryset = restaurant.staff_members.filter(is_active=True).select_related("user")
+        return paginated_response(request, self, queryset, RestaurantStaffSerializer)
+
+    @extend_schema(summary="Invite a MANAGER or STAFF member by phone number (owner only)")
+    def post(self, request, pk):
+        restaurant = get_object_or_404(Restaurant, pk=pk)
+        self.check_object_permissions(request, restaurant)
+        serializer = RestaurantStaffInviteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        membership = services.invite_staff(
+            restaurant,
+            invited_by=request.user,
+            **serializer.validated_data,
+        )
+        return APIResponse(data=RestaurantStaffSerializer(membership).data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(tags=["Restaurant Staff"], summary="Update or remove a team member (owner only)")
+class RestaurantStaffDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+
+    def _get_membership(self, request, pk, staff_id):
+        restaurant = get_object_or_404(Restaurant, pk=pk)
+        self.check_object_permissions(request, restaurant)
+        return get_object_or_404(RestaurantStaff, pk=staff_id, restaurant=restaurant)
+
+    def patch(self, request, pk, staff_id):
+        membership = self._get_membership(request, pk, staff_id)
+        serializer = RestaurantStaffUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            setattr(membership, field, value)
+        membership.save(update_fields=list(serializer.validated_data.keys()))
+        return APIResponse(data=RestaurantStaffSerializer(membership).data)
+
+    def delete(self, request, pk, staff_id):
+        membership = self._get_membership(request, pk, staff_id)
+        membership.delete()
+        return APIResponse(data=None, status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(tags=["Restaurants"], summary="Today's order/sales summary for the partner dashboard (owner/manager/staff)")
+class RestaurantDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
+
+    def get(self, request, pk):
+        from apps.orders.models import Order, OrderStatus  # local import: avoids a module-load-order dependency
+
+        restaurant = get_object_or_404(Restaurant, pk=pk)
+        self.check_object_permissions(request, restaurant)
+        role = get_partner_role(request.user, restaurant)
+
+        today_orders = Order.objects.filter(restaurant=restaurant, created_at__date=timezone.localdate())
+        pending_statuses = [
+            OrderStatus.PLACED, OrderStatus.ACCEPTED, OrderStatus.PREPARING,
+            OrderStatus.READY_FOR_PICKUP, OrderStatus.OUT_FOR_DELIVERY,
+        ]
+        today_count = today_orders.count()
+        completed_count = today_orders.filter(status=OrderStatus.DELIVERED).count()
+        cancelled_count = today_orders.filter(status=OrderStatus.CANCELLED).count()
+        sales = today_orders.exclude(status=OrderStatus.CANCELLED).aggregate(total=Sum("total_amount"))["total"] or 0
+
+        payload = {
+            "restaurant_name": restaurant.name,
+            "display_status": restaurant.display_status,
+            "today_orders_count": today_count,
+            "pending_orders_count": today_orders.filter(status__in=pending_statuses).count(),
+            "completed_orders_count": completed_count,
+            "cancellation_rate_percent": round((cancelled_count / today_count * 100), 1) if today_count else 0.0,
+            "rating": restaurant.average_rating,
+        }
+        if role in ("owner", RestaurantStaffRole.MANAGER):
+            payload["today_sales"] = sales
+            payload["average_order_value"] = round(sales / today_count, 2) if today_count else 0
+        return APIResponse(data=RestaurantDashboardSerializer(payload).data)
 
 
 @extend_schema(tags=["Restaurants"], summary="Get a restaurant's rating breakdown")

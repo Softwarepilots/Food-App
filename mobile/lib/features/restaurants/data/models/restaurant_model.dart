@@ -15,19 +15,21 @@ double? _parseNullableDecimal(dynamic value) {
 
 class RestaurantCategoryModel extends Equatable {
   final String id;
+  final String slug;
   final String name;
   final String? iconUrl;
 
-  const RestaurantCategoryModel({required this.id, required this.name, this.iconUrl});
+  const RestaurantCategoryModel({required this.id, required this.slug, required this.name, this.iconUrl});
 
   factory RestaurantCategoryModel.fromJson(Map<String, dynamic> json) => RestaurantCategoryModel(
         id: json['id'] as String,
+        slug: json['slug'] as String? ?? '',
         name: json['name'] as String,
         iconUrl: (json['icon_url'] as String?)?.isNotEmpty == true ? json['icon_url'] as String : null,
       );
 
   @override
-  List<Object?> get props => [id, name, iconUrl];
+  List<Object?> get props => [id, slug, name, iconUrl];
 }
 
 class BusinessHoursModel extends Equatable {

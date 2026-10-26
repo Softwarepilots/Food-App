@@ -25,7 +25,7 @@ class RestaurantCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 3))],
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -35,7 +35,7 @@ class RestaurantCard extends StatelessWidget {
               children: [
                 Opacity(
                   opacity: closed ? 0.5 : 1,
-                  child: AppNetworkImage(url: restaurant.displayImageUrl, height: 140, width: double.infinity),
+                  child: AppNetworkImage(url: restaurant.displayImageUrl, height: 160, width: double.infinity),
                 ),
                 if (closed)
                   Positioned(
@@ -47,19 +47,6 @@ class RestaurantCard extends StatelessWidget {
                       child: const Text('Closed', style: TextStyle(color: Colors.white, fontSize: 12)),
                     ),
                   ),
-                if (restaurant.distanceKm != null)
-                  Positioned(
-                    right: onFavoriteToggle != null ? 52 : 12,
-                    top: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)),
-                      child: Text(
-                        Formatters.distanceKm(restaurant.distanceKm!),
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
-                      ),
-                    ),
-                  ),
                 if (onFavoriteToggle != null)
                   Positioned(
                     right: 12,
@@ -69,7 +56,7 @@ class RestaurantCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16),
                       child: Container(
                         padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
                         child: Icon(
                           restaurant.isFavorite ? Icons.favorite : Icons.favorite_border,
                           size: 16,
@@ -78,42 +65,81 @@ class RestaurantCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.schedule, size: 13, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${restaurant.avgPrepTimeMinutes}-${restaurant.avgPrepTimeMinutes + 10} mins',
+                          style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (restaurant.distanceKm != null)
+                  Positioned(
+                    left: 12,
+                    bottom: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)),
+                      child: Text(
+                        Formatters.distanceKm(restaurant.distanceKm!),
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+                  ),
               ],
             ),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    restaurant.name,
+                    style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 5),
                   Row(
                     children: [
+                      RatingBadge(rating: restaurant.averageRating, compact: true),
+                      if (restaurant.totalReviews > 0) ...[
+                        const SizedBox(width: 6),
+                        Text('(${restaurant.totalReviews})', style: AppTextStyles.caption),
+                      ],
+                      const SizedBox(width: 6),
+                      const Text('•', style: TextStyle(color: AppColors.textDisabled)),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          restaurant.name,
-                          style: AppTextStyles.titleMedium,
+                          restaurant.city,
+                          style: AppTextStyles.caption,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      RatingBadge(rating: restaurant.averageRating, compact: true),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    restaurant.cuisineTags.isNotEmpty ? restaurant.cuisineTags.join(', ') : restaurant.city,
-                    style: AppTextStyles.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.schedule, size: 14, color: AppColors.textSecondary),
-                      const SizedBox(width: 4),
-                      Text('${restaurant.avgPrepTimeMinutes}-${restaurant.avgPrepTimeMinutes + 10} min', style: AppTextStyles.caption),
-                    ],
-                  ),
+                  if (restaurant.cuisineTags.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      restaurant.cuisineTags.join(', '),
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
               ),
             ),

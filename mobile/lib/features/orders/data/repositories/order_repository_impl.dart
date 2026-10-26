@@ -33,4 +33,9 @@ class OrderRepositoryImpl implements OrderRepository {
 
   @override
   Future<OrderModel> cancelOrder(String id, {String? reason}) => _remoteDataSource.cancelOrder(id, reason: reason);
+
+  @override
+  Future<void> submitReview(String orderId, {required int rating, String? comment, int? deliveryRating}) {
+    return _remoteDataSource.submitReview(orderId, rating: rating, comment: comment, deliveryRating: deliveryRating);
+  }
 }

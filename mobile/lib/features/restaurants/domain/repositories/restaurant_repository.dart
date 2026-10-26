@@ -11,6 +11,7 @@ abstract class RestaurantRepository {
     double? lat,
     double? lng,
     bool onlyOpen = false,
+    String? vegFilter,
   });
 
   Future<RestaurantModel> getRestaurantDetail(String id);

@@ -96,6 +96,10 @@ class Order(BaseModel):
     payment_status = models.CharField(
         max_length=10, choices=OrderPaymentStatus.choices, default=OrderPaymentStatus.PENDING, db_index=True
     )
+    # §7's accept-within countdown — set once at creation (see services.place_order)
+    # from settings.ORDER_ACCEPT_TIMEOUT_SECONDS, never recomputed, so changing
+    # that setting later doesn't retroactively move existing orders' deadlines.
+    accept_deadline = models.DateTimeField(null=True, blank=True)
 
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
     delivery_fee = models.DecimalField(max_digits=8, decimal_places=2, default=0, validators=[MinValueValidator(Decimal("0"))])
@@ -104,6 +108,10 @@ class Order(BaseModel):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
 
     cancellation_reason = models.CharField(max_length=255, blank=True)
+    # Set by the restaurant when they accept (§8) — how long *they* expect
+    # prep to take, distinct from the restaurant's general
+    # `avg_prep_time_minutes` estimate shown before the order exists.
+    estimated_prep_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
@@ -162,6 +170,16 @@ class Review(BaseModel):
     rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     comment = models.TextField(blank=True)
     restaurant_reply = models.TextField(blank=True)
+    # Optional — only set when the order actually had a delivery partner
+    # assigned. Rating the rider is a separate axis from rating the food/
+    # restaurant, so it's its own nullable field rather than forcing one
+    # combined score.
+    delivery_partner = models.ForeignKey(
+        "delivery.DeliveryPartner", on_delete=models.SET_NULL, null=True, blank=True, related_name="reviews"
+    )
+    delivery_rating = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
 
     class Meta:
         db_table = "orders_review"

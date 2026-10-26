@@ -8,6 +8,7 @@ import '../../../../core/widgets/loading_indicator.dart';
 import '../../data/models/order_model.dart';
 import '../providers/order_list_provider.dart';
 import '../widgets/order_card.dart';
+import '../widgets/prep_time_picker.dart';
 
 class OrderListScreen extends ConsumerStatefulWidget {
   const OrderListScreen({super.key});
@@ -20,9 +21,15 @@ class _OrderListScreenState extends ConsumerState<OrderListScreen> {
   String? _updatingOrderId;
 
   Future<void> _advance(String orderId, OrderStatus status) async {
+    int? prepTimeMinutes;
+    if (status == OrderStatus.accepted) {
+      prepTimeMinutes = await showPrepTimePicker(context);
+      if (prepTimeMinutes == null) return; // owner backed out of the picker
+    }
+    if (!mounted) return;
     setState(() => _updatingOrderId = orderId);
     try {
-      await ref.read(orderListProvider.notifier).advanceStatus(orderId, status);
+      await ref.read(orderListProvider.notifier).advanceStatus(orderId, status, prepTimeMinutes: prepTimeMinutes);
     } catch (e) {
       if (!mounted) return;
       final failure = Failure.fromException(e);

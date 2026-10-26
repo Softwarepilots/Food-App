@@ -11,15 +11,32 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../restaurants/presentation/providers/restaurant_list_provider.dart';
 import '../../../restaurants/presentation/providers/restaurant_repository_provider.dart';
 import '../../../restaurants/presentation/widgets/restaurant_card.dart';
+import '../../../restaurants/presentation/widgets/veg_toggle.dart';
 import '../widgets/category_chip_list.dart';
 import '../widgets/promo_banner_carousel.dart';
 import '../widgets/quick_action_row.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  void _toggleCategory(String slug) {
+    final current = ref.read(restaurantListProvider).filters;
+    final next = current.category == slug ? '' : slug;
+    ref.read(restaurantListProvider.notifier).updateFilters(current.copyWith(category: next));
+  }
+
+  void _setVegFilter(String? value) {
+    final current = ref.read(restaurantListProvider).filters;
+    ref.read(restaurantListProvider.notifier).updateFilters(current.copyWith(vegFilter: value ?? ''));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final categoriesAsync = ref.watch(restaurantCategoriesProvider);
     final listState = ref.watch(restaurantListProvider);
@@ -76,27 +93,41 @@ class HomeScreen extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                  child: InkWell(
-                    onTap: () => context.push('/restaurants'),
-                    borderRadius: BorderRadius.circular(28),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: AppColors.border),
-                        boxShadow: [
-                          BoxShadow(color: AppColors.primary.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4)),
-                        ],
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => context.push('/restaurants'),
+                          borderRadius: BorderRadius.circular(28),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(color: AppColors.border),
+                              boxShadow: [
+                                BoxShadow(color: AppColors.primary.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4)),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.search, color: AppColors.textSecondary),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Search restaurants or cuisines',
+                                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.search, color: AppColors.textSecondary),
-                          const SizedBox(width: 10),
-                          Text('Search restaurants or cuisines', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary)),
-                        ],
-                      ),
-                    ),
+                      const SizedBox(width: 10),
+                      VegToggle(value: listState.filters.vegFilter, onChanged: _setVegFilter),
+                    ],
                   ),
                 ),
               ),
@@ -119,16 +150,17 @@ class HomeScreen extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: Text('Categories', style: AppTextStyles.titleLarge),
+                  child: Text("What's on your mind?", style: AppTextStyles.titleLarge),
                 ),
               ),
               SliverToBoxAdapter(
                 child: categoriesAsync.when(
-                  loading: () => const SizedBox(height: 96, child: LoadingIndicator(size: 24)),
+                  loading: () => const SizedBox(height: 100, child: LoadingIndicator(size: 24)),
                   error: (error, _) => const SizedBox.shrink(),
                   data: (categories) => CategoryChipList(
                     categories: categories,
-                    onTap: (category) => context.push('/restaurants', extra: {'initialCategory': category.id}),
+                    selectedSlug: listState.filters.category,
+                    onTap: (category) => _toggleCategory(category.slug),
                   ),
                 ),
               ),
@@ -138,7 +170,7 @@ class HomeScreen extends ConsumerWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Top Restaurants', style: AppTextStyles.titleLarge),
+                      Text('Restaurants to explore', style: AppTextStyles.titleLarge),
                       TextButton(
                         onPressed: () => context.push('/restaurants'),
                         child: Text('See all', style: AppTextStyles.labelLarge.copyWith(color: AppColors.primary)),

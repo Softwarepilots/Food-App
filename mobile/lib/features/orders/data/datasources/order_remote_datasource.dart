@@ -61,4 +61,21 @@ class OrderRemoteDataSource {
       throw mapDioExceptionToAppException(e);
     }
   }
+
+  Future<void> submitReview(
+    String orderId, {
+    required int rating,
+    String? comment,
+    int? deliveryRating,
+  }) async {
+    try {
+      await _dio.post(ApiConstants.orderReview(orderId), data: {
+        'rating': rating,
+        if (comment != null && comment.isNotEmpty) 'comment': comment,
+        if (deliveryRating != null) 'delivery_rating': deliveryRating,
+      });
+    } on DioException catch (e) {
+      throw mapDioExceptionToAppException(e);
+    }
+  }
 }

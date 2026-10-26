@@ -6,6 +6,7 @@ class RoutePaths {
   static const String register = '/register';
   static const String setup = '/setup';
 
+  static const String dashboard = '/dashboard';
   static const String orders = '/orders';
   static const String menu = '/menu';
   static const String settings = '/settings';

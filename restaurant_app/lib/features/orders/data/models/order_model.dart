@@ -139,6 +139,8 @@ class OrderModel extends Equatable {
   final double totalAmount;
   final String? notes;
   final DateTime createdAt;
+  final int? estimatedPrepMinutes;
+  final DateTime? acceptDeadline;
 
   const OrderModel({
     required this.id,
@@ -153,6 +155,8 @@ class OrderModel extends Equatable {
     required this.totalAmount,
     this.notes,
     required this.createdAt,
+    this.estimatedPrepMinutes,
+    this.acceptDeadline,
   });
 
   factory OrderModel.fromJson(Map<String, dynamic> json) => OrderModel(
@@ -168,6 +172,8 @@ class OrderModel extends Equatable {
         totalAmount: _parseDecimal(json['total_amount']),
         notes: json['notes'] as String?,
         createdAt: _parseDate(json['created_at']),
+        estimatedPrepMinutes: json['estimated_prep_minutes'] as int?,
+        acceptDeadline: json['accept_deadline'] != null ? DateTime.tryParse(json['accept_deadline'].toString()) : null,
       );
 
   @override
@@ -184,5 +190,7 @@ class OrderModel extends Equatable {
         totalAmount,
         notes,
         createdAt,
+        estimatedPrepMinutes,
+        acceptDeadline,
       ];
 }

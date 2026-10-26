@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from django.db import transaction
 from django.utils import timezone
 
+from apps.accounts.models import User, UserRole
 from apps.common.exceptions import ApplicationError
 from apps.common.geo import haversine_distance_km
 from apps.common.storage import SupabaseStorageService
@@ -11,6 +14,7 @@ from .models import (
     RestaurantDocument,
     RestaurantDocumentStatus,
     RestaurantImage,
+    RestaurantStaff,
 )
 
 ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -114,8 +118,13 @@ def get_rating_breakdown(restaurant):
     }
 
 
-def search_restaurants(queryset, *, city=None, category_slug=None, cuisine=None, search=None, lat=None, lng=None, only_open=None):
-    """Applies DB-safe filters (city/category/name) via the queryset, then
+VEG_FOOD_TYPES = ["veg", "vegan"]
+NON_VEG_FOOD_TYPES = ["non_veg", "egg"]
+
+
+def search_restaurants(queryset, *, city=None, category_slug=None, cuisine=None, search=None, lat=None, lng=None,
+                        only_open=None, veg_filter=None):
+    """Applies DB-safe filters (city/category/name/veg) via the queryset, then
     cuisine/distance/open-now in Python — kept out of SQL since ArrayField
     containment and haversine distance aren't portable across backends and
     the restaurant list is small enough for this to be cheap."""
@@ -125,6 +134,10 @@ def search_restaurants(queryset, *, city=None, category_slug=None, cuisine=None,
         queryset = queryset.filter(categories__slug=category_slug)
     if search:
         queryset = queryset.filter(name__icontains=search)
+    if veg_filter == "veg":
+        queryset = queryset.filter(food_items__food_type__in=VEG_FOOD_TYPES, food_items__is_available=True)
+    elif veg_filter == "non_veg":
+        queryset = queryset.filter(food_items__food_type__in=NON_VEG_FOOD_TYPES, food_items__is_available=True)
 
     restaurants = list(queryset.distinct())
 
@@ -147,3 +160,46 @@ def search_restaurants(queryset, *, city=None, category_slug=None, cuisine=None,
         restaurants = [r for r in restaurants if r.is_open_now]
 
     return restaurants
+
+
+PAUSE_DURATION_FIELDS = ("is_accepting_orders", "pause_reason", "paused_until")
+
+
+def pause_restaurant(restaurant, *, reason, duration_minutes=None):
+    restaurant.is_accepting_orders = False
+    restaurant.pause_reason = reason
+    restaurant.paused_until = timezone.now() + timedelta(minutes=duration_minutes) if duration_minutes else None
+    restaurant.save(update_fields=PAUSE_DURATION_FIELDS)
+    return restaurant
+
+
+def resume_restaurant(restaurant):
+    restaurant.is_accepting_orders = True
+    restaurant.pause_reason = ""
+    restaurant.paused_until = None
+    restaurant.save(update_fields=PAUSE_DURATION_FIELDS)
+    return restaurant
+
+
+@transaction.atomic
+def invite_staff(restaurant, *, full_name, phone_number, role, invited_by, email=""):
+    if restaurant.owner.phone_number == phone_number:
+        raise ApplicationError("The restaurant's owner doesn't need a separate staff invite.", code="already_owner")
+
+    user, created = User.objects.get_or_create(
+        phone_number=phone_number,
+        # `email` is unique-but-nullable — two invites left blank must both
+        # store NULL, not "", or the second one collides on the unique index.
+        defaults={"full_name": full_name, "email": email or None, "role": UserRole.RESTAURANT_OWNER},
+    )
+    if not created and user.role != UserRole.RESTAURANT_OWNER:
+        raise ApplicationError(
+            f"{phone_number} already belongs to a {user.get_role_display().lower()} account.", code="role_conflict"
+        )
+
+    membership, membership_created = RestaurantStaff.objects.update_or_create(
+        restaurant=restaurant,
+        user=user,
+        defaults={"role": role, "is_active": True, "invited_by": invited_by},
+    )
+    return membership

@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.common.validators import fssai_number_validator, gst_number_validator, pan_number_validator, shop_license_number_validator
+
 from .models import (
     Restaurant,
     RestaurantBusinessHours,
@@ -7,6 +9,8 @@ from .models import (
     RestaurantDocument,
     RestaurantDocumentStatus,
     RestaurantImage,
+    RestaurantStaff,
+    RestaurantStaffRole,
 )
 
 
@@ -116,16 +120,25 @@ class RestaurantDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
+        # Deliberately excludes bank_account_*/ifsc — this serializer's response
+        # is also returned by the PUBLIC restaurant-detail GET (see
+        # `_visible_restaurant_or_404` in views.py), so anything here is
+        # visible to any customer browsing the restaurant page. Payout
+        # details live only on `RestaurantPartnerDetailSerializer` below,
+        # used solely from owner/manager-authenticated responses.
         fields = (
             "id", "owner", "name", "slug", "description", "cover_image_url", "cuisine_tags", "categories",
             "address_line", "city", "latitude", "longitude", "delivery_radius_km",
             "avg_prep_time_minutes", "average_rating", "total_reviews",
-            "is_active", "is_accepting_orders", "approval_status", "rejection_reason", "display_status",
+            "is_active", "is_accepting_orders", "pause_reason", "paused_until",
+            "approval_status", "rejection_reason", "display_status",
             "is_open_now", "images", "business_hours", "distance_km", "is_favorite", "created_at",
+            "fssai_number", "gst_number", "minimum_order_value", "packaging_policy",
         )
         read_only_fields = (
             "id", "owner", "average_rating", "total_reviews", "approval_status", "rejection_reason",
             "display_status", "is_open_now", "images", "business_hours", "created_at",
+            "pause_reason", "paused_until",
         )
 
     def get_distance_km(self, obj):
@@ -138,9 +151,32 @@ class RestaurantDetailSerializer(serializers.ModelSerializer):
         return obj.favorited_by.filter(user=request.user).exists()
 
 
+class RestaurantPartnerDetailSerializer(RestaurantDetailSerializer):
+    """Same as `RestaurantDetailSerializer` plus payout/bank details — only
+    ever returned from endpoints already gated to the restaurant's own
+    owner/manager (never the public GET)."""
+
+    class Meta(RestaurantDetailSerializer.Meta):
+        fields = RestaurantDetailSerializer.Meta.fields + (
+            "pan_number", "shop_license_number",
+            "bank_account_holder_name", "bank_account_number", "bank_ifsc_code",
+        )
+
+
 class RestaurantCreateUpdateSerializer(serializers.ModelSerializer):
     category_ids = serializers.PrimaryKeyRelatedField(
         source="categories", queryset=RestaurantCategory.objects.filter(is_active=True), many=True, required=False
+    )
+    # Required to *register* a restaurant (full create, not `partial=True`
+    # updates — DRF's partial mode already relaxes `required` for PATCH, so
+    # these don't block an owner from e.g. toggling `is_active` alone later).
+    # PAN and FSSAI are legally mandatory for a food business in India; GST
+    # stays optional (small businesses under the threshold don't need one).
+    pan_number = serializers.CharField(max_length=10, validators=[pan_number_validator])
+    fssai_number = serializers.CharField(max_length=14, validators=[fssai_number_validator])
+    shop_license_number = serializers.CharField(max_length=30, validators=[shop_license_number_validator])
+    gst_number = serializers.CharField(
+        max_length=15, required=False, allow_blank=True, validators=[gst_number_validator]
     )
 
     class Meta:
@@ -149,6 +185,7 @@ class RestaurantCreateUpdateSerializer(serializers.ModelSerializer):
             "id", "name", "description", "cover_image_url", "cuisine_tags", "category_ids",
             "address_line", "city", "latitude", "longitude", "delivery_radius_km",
             "avg_prep_time_minutes", "is_active", "is_accepting_orders",
+            "pan_number", "fssai_number", "gst_number", "shop_license_number",
         )
         read_only_fields = ("id",)
 
@@ -183,3 +220,55 @@ class RestaurantRatingBreakdownSerializer(serializers.Serializer):
     average_rating = serializers.DecimalField(max_digits=3, decimal_places=2)
     total_reviews = serializers.IntegerField()
     breakdown = serializers.DictField(child=serializers.IntegerField())
+
+
+class RestaurantPauseReason(serializers.ChoiceField):
+    def __init__(self, **kwargs):
+        super().__init__(
+            choices=["kitchen_busy", "staff_unavailable", "maintenance", "power_issue", "other"], **kwargs
+        )
+
+
+class RestaurantPauseSerializer(serializers.Serializer):
+    reason = RestaurantPauseReason()
+    # Minutes to stay paused for; omit for "until manually enabled".
+    duration_minutes = serializers.ChoiceField(choices=[30, 60, 120], required=False, allow_null=True)
+
+
+class RestaurantStaffSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source="user.full_name", read_only=True)
+    phone_number = serializers.CharField(source="user.phone_number", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+
+    class Meta:
+        model = RestaurantStaff
+        fields = ("id", "full_name", "phone_number", "email", "role", "is_active", "created_at")
+        read_only_fields = ("id", "created_at")
+
+
+class RestaurantStaffInviteSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=150)
+    phone_number = serializers.CharField(max_length=15)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    role = serializers.ChoiceField(choices=RestaurantStaffRole.choices)
+
+
+class RestaurantStaffUpdateSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=RestaurantStaffRole.choices, required=False)
+    is_active = serializers.BooleanField(required=False)
+
+
+class RestaurantDashboardSerializer(serializers.Serializer):
+    """§5/§20 dashboard summary. `today_sales`/`average_order_value` are
+    omitted (not just zeroed) for STAFF callers — financial figures aren't
+    part of their role per §4."""
+
+    restaurant_name = serializers.CharField()
+    display_status = serializers.CharField()
+    today_orders_count = serializers.IntegerField()
+    pending_orders_count = serializers.IntegerField()
+    completed_orders_count = serializers.IntegerField()
+    cancellation_rate_percent = serializers.FloatField()
+    rating = serializers.DecimalField(max_digits=3, decimal_places=2)
+    today_sales = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    average_order_value = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)

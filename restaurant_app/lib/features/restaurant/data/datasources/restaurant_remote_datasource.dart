@@ -27,6 +27,10 @@ class RestaurantRemoteDataSource {
     required String city,
     required double latitude,
     required double longitude,
+    required String panNumber,
+    required String fssaiNumber,
+    required String shopLicenseNumber,
+    String? gstNumber,
   }) async {
     try {
       final response = await _dio.post(ApiConstants.restaurants, data: {
@@ -36,6 +40,10 @@ class RestaurantRemoteDataSource {
         'city': city,
         'latitude': latitude,
         'longitude': longitude,
+        'pan_number': panNumber,
+        'fssai_number': fssaiNumber,
+        'shop_license_number': shopLicenseNumber,
+        if (gstNumber != null && gstNumber.isNotEmpty) 'gst_number': gstNumber,
       });
       return RestaurantModel.fromJson(unwrapData(response) as Map<String, dynamic>);
     } on DioException catch (e) {

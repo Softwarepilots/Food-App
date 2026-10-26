@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/gigs/presentation/screens/gigs_screen.dart';
 import '../../features/orders/presentation/screens/available_orders_screen.dart';
 import '../../features/orders/presentation/screens/my_deliveries_screen.dart';
 import '../../features/profile/presentation/providers/partner_provider.dart';
@@ -70,6 +71,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state, navigationShell) => MainShell(navigationShell: navigationShell),
         branches: [
           StatefulShellBranch(routes: [GoRoute(path: RoutePaths.available, builder: (context, state) => const AvailableOrdersScreen())]),
+          StatefulShellBranch(routes: [GoRoute(path: RoutePaths.gigs, builder: (context, state) => const GigsScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: RoutePaths.deliveries, builder: (context, state) => const MyDeliveriesScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: RoutePaths.profile, builder: (context, state) => const ProfileScreen())]),
         ],

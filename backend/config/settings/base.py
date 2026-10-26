@@ -238,6 +238,34 @@ OTP_RESEND_COOLDOWN_SECONDS = env.int("OTP_RESEND_COOLDOWN_SECONDS", default=60)
 OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)
 
 # --------------------------------------------------------------------------
+# Orders
+# --------------------------------------------------------------------------
+
+# §7 "Accept within: 00:45" — how long a restaurant has to accept a newly
+# placed order before it's auto-rejected. Stored per-order at creation time
+# (`Order.accept_deadline`) rather than computed from this setting on every
+# read, so changing it later doesn't retroactively move the deadline on
+# orders that already exist.
+ORDER_ACCEPT_TIMEOUT_SECONDS = env.int("ORDER_ACCEPT_TIMEOUT_SECONDS", default=120)
+
+# --------------------------------------------------------------------------
+# Firebase Cloud Messaging (push notifications)
+# --------------------------------------------------------------------------
+
+# Path to the service-account JSON downloaded from Firebase Console ->
+# Project Settings -> Service Accounts -> Generate new private key. Left
+# unset in dev until that file exists; apps.notifications.push checks this
+# before initializing and no-ops (with a log warning) if it's missing, so
+# the rest of the app works fine without it. Resolved against BASE_DIR when
+# given as a relative path, so it doesn't depend on the process's cwd.
+_firebase_credentials_path = env("FIREBASE_CREDENTIALS_PATH", default="")
+FIREBASE_CREDENTIALS_PATH = (
+    str(BASE_DIR / _firebase_credentials_path)
+    if _firebase_credentials_path and not Path(_firebase_credentials_path).is_absolute()
+    else _firebase_credentials_path
+)
+
+# --------------------------------------------------------------------------
 # Supabase Storage (restaurant images, documents, and other user uploads)
 # --------------------------------------------------------------------------
 

@@ -12,7 +12,8 @@ import '../../../../core/widgets/loading_indicator.dart';
 import '../../../cart/presentation/providers/cart_provider.dart';
 import '../../../menu/data/models/food_model.dart';
 import '../../../menu/presentation/providers/menu_provider.dart';
-import '../../../menu/presentation/widgets/food_list_tile.dart';
+import '../../../menu/presentation/widgets/food_grid_tile.dart';
+import '../../../menu/presentation/widgets/veg_indicator.dart';
 import '../../data/models/restaurant_model.dart';
 import '../providers/restaurant_detail_provider.dart';
 import '../providers/restaurant_repository_provider.dart';
@@ -108,6 +109,7 @@ class _RestaurantDetailBody extends ConsumerStatefulWidget {
 
 class _RestaurantDetailBodyState extends ConsumerState<_RestaurantDetailBody> {
   int _selectedTab = 0;
+  _VegFilter _vegFilter = _VegFilter.all;
   late bool _isFavorite = widget.restaurant.isFavorite;
 
   Future<void> _toggleFavorite() async {
@@ -240,6 +242,7 @@ class _RestaurantDetailBodyState extends ConsumerState<_RestaurantDetailBody> {
               for (final category in menu.categories) _MenuTab(category.name, category.foods),
             ];
             final selected = _selectedTab < tabs.length ? _selectedTab : 0;
+            final visibleFoods = tabs[selected].foods.where(_vegFilter.matches).toList();
 
             return SliverMainAxisGroup(
               slivers: [
@@ -281,7 +284,24 @@ class _RestaurantDetailBodyState extends ConsumerState<_RestaurantDetailBody> {
                   ),
                 ),
                 const SliverToBoxAdapter(child: Divider(color: AppColors.divider, height: 1)),
-                if (tabs[selected].foods.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                    child: Row(
+                      children: [
+                        for (final filter in _VegFilter.values) ...[
+                          _VegFilterChip(
+                            filter: filter,
+                            selected: _vegFilter == filter,
+                            onSelected: () => setState(() => _vegFilter = filter),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                if (visibleFoods.isEmpty)
                   const SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.all(32),
@@ -290,14 +310,21 @@ class _RestaurantDetailBodyState extends ConsumerState<_RestaurantDetailBody> {
                   )
                 else
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                    sliver: SliverList.separated(
-                      itemCount: tabs[selected].foods.length,
-                      separatorBuilder: (_, _) => const Divider(color: AppColors.divider, height: 1),
-                      itemBuilder: (context, index) {
-                        final food = tabs[selected].foods[index];
-                        return FoodListTile(food: food, onTap: () => widget.onFoodTap(food));
-                      },
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 0.78,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final food = visibleFoods[index];
+                          return FoodGridTile(food: food, onTap: () => widget.onFoodTap(food));
+                        },
+                        childCount: visibleFoods.length,
+                      ),
                     ),
                   ),
               ],
@@ -314,4 +341,63 @@ class _MenuTab {
   final List<FoodModel> foods;
 
   const _MenuTab(this.label, this.foods);
+}
+
+enum _VegFilter { all, veg, nonVeg }
+
+extension on _VegFilter {
+  bool matches(FoodModel food) {
+    switch (this) {
+      case _VegFilter.all:
+        return true;
+      case _VegFilter.veg:
+        return food.isVeg;
+      case _VegFilter.nonVeg:
+        return !food.isVeg;
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case _VegFilter.all:
+        return 'All';
+      case _VegFilter.veg:
+        return 'Veg';
+      case _VegFilter.nonVeg:
+        return 'Non-Veg';
+    }
+  }
+}
+
+class _VegFilterChip extends StatelessWidget {
+  final _VegFilter filter;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  const _VegFilterChip({required this.filter, required this.selected, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (filter != _VegFilter.all) ...[
+            VegIndicator(isVeg: filter == _VegFilter.veg, size: 12),
+            const SizedBox(width: 6),
+          ],
+          Text(filter.label),
+        ],
+      ),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      labelStyle: AppTextStyles.bodySmall.copyWith(
+        color: selected ? Colors.white : AppColors.textPrimary,
+        fontWeight: FontWeight.w600,
+      ),
+      selectedColor: AppColors.primary,
+      backgroundColor: AppColors.chipBackground,
+      side: BorderSide.none,
+    );
+  }
 }

@@ -35,4 +35,14 @@ class ApiConstants {
   static const String myDeliveries = '/delivery/orders/mine/';
   static String acceptOrder(String orderId) => '/delivery/orders/$orderId/accept/';
   static String deliverOrder(String orderId) => '/delivery/orders/$orderId/deliver/';
+
+  // Notifications
+  static const String deviceRegister = '/notifications/devices/register/';
+  static const String deviceUnregister = '/notifications/devices/unregister/';
+
+  // Gigs (bookable shifts)
+  static const String shifts = '/delivery/shifts/';
+  static const String myShifts = '/delivery/shifts/mine/';
+  static String bookShift(String shiftId) => '/delivery/shifts/$shiftId/book/';
+  static String cancelShift(String shiftId) => '/delivery/shifts/$shiftId/cancel/';
 }

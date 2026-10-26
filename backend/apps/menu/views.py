@@ -8,8 +8,8 @@ from apps.accounts.models import UserRole
 from apps.common.exceptions import ApplicationError
 from apps.common.pagination import paginated_response
 from apps.common.response import APIResponse
-from apps.restaurants.models import Restaurant, RestaurantApprovalStatus
-from apps.restaurants.permissions import IsRestaurantOwnerOfObject, ReadOnlyOrIsRestaurantOwner
+from apps.restaurants.models import Restaurant, RestaurantApprovalStatus, RestaurantStaffRole
+from apps.restaurants.permissions import IsRestaurantTeamMember, ReadOnlyOrIsRestaurantOwner
 
 from . import services
 from .models import Food, FoodAddon, FoodCategory, FoodDiscount, FoodImage, FoodVariant
@@ -64,16 +64,20 @@ class PublicMenuView(APIView):
 
 @extend_schema(tags=["Food Categories"])
 class FoodCategoryListCreateView(APIView):
+    # Restructuring the menu is an owner/manager action — STAFF is limited to
+    # availability toggles per the partner role table.
+    min_partner_role = RestaurantStaffRole.MANAGER
+
     def get_permissions(self):
         if self.request.method == "POST":
-            return [permissions.IsAuthenticated(), IsRestaurantOwnerOfObject()]
+            return [permissions.IsAuthenticated(), IsRestaurantTeamMember()]
         return [permissions.AllowAny()]
 
     def get(self, request, restaurant_id):
         restaurant = _visible_restaurant_or_404(restaurant_id, request.user)
         return APIResponse(data=FoodCategorySerializer(restaurant.food_categories.all(), many=True).data)
 
-    @extend_schema(summary="Create a food category (owner only)")
+    @extend_schema(summary="Create a food category (owner/manager)")
     def post(self, request, restaurant_id):
         restaurant = _restaurant_or_404(restaurant_id)
         self.check_object_permissions(request, restaurant)
@@ -85,7 +89,8 @@ class FoodCategoryListCreateView(APIView):
 
 @extend_schema(tags=["Food Categories"])
 class FoodCategoryDetailView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
+    min_partner_role = RestaurantStaffRole.MANAGER
 
     def patch(self, request, restaurant_id, pk):
         category = get_object_or_404(FoodCategory, pk=pk, restaurant_id=restaurant_id)
@@ -104,16 +109,20 @@ class FoodCategoryDetailView(APIView):
 
 @extend_schema(tags=["Foods"])
 class FoodListCreateView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    def get_permissions(self):
+        # Listing (including unavailable items) is a day-to-day STAFF task;
+        # creating a new item is a MANAGER+ menu-structure change.
+        min_role = RestaurantStaffRole.MANAGER if self.request.method == "POST" else RestaurantStaffRole.STAFF
+        return [permissions.IsAuthenticated(), IsRestaurantTeamMember(min_role=min_role)]
 
-    @extend_schema(summary="List all foods for a restaurant, including unavailable (owner/admin management view)")
+    @extend_schema(summary="List all foods for a restaurant, including unavailable (owner/manager/staff management view)")
     def get(self, request, restaurant_id):
         restaurant = _restaurant_or_404(restaurant_id)
         self.check_object_permissions(request, restaurant)
         queryset = restaurant.food_items.all()
         return paginated_response(request, self, queryset, FoodDetailSerializer)
 
-    @extend_schema(summary="Create a food item (owner only)", request=FoodCreateUpdateSerializer)
+    @extend_schema(summary="Create a food item (owner/manager)", request=FoodCreateUpdateSerializer)
     def post(self, request, restaurant_id):
         restaurant = _restaurant_or_404(restaurant_id)
         self.check_object_permissions(request, restaurant)
@@ -130,14 +139,14 @@ class FoodDetailView(APIView):
     def get_permissions(self):
         if self.request.method == "GET":
             return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated(), IsRestaurantOwnerOfObject()]
+        return [permissions.IsAuthenticated(), IsRestaurantTeamMember(min_role=RestaurantStaffRole.MANAGER)]
 
     def get(self, request, restaurant_id, pk):
         food = get_object_or_404(Food, pk=pk, restaurant_id=restaurant_id)
         _visible_restaurant_or_404(restaurant_id, request.user)
         return APIResponse(data=FoodDetailSerializer(food).data)
 
-    @extend_schema(summary="Update a food item (owner only)")
+    @extend_schema(summary="Update a food item (owner/manager)")
     def patch(self, request, restaurant_id, pk):
         food = get_object_or_404(Food, pk=pk, restaurant_id=restaurant_id)
         self.check_object_permissions(request, food)
@@ -148,7 +157,7 @@ class FoodDetailView(APIView):
         serializer.save()
         return APIResponse(data=FoodDetailSerializer(food).data)
 
-    @extend_schema(summary="Delete a food item (owner only)")
+    @extend_schema(summary="Delete a food item (owner/manager)")
     def delete(self, request, restaurant_id, pk):
         food = get_object_or_404(Food, pk=pk, restaurant_id=restaurant_id)
         self.check_object_permissions(request, food)
@@ -156,9 +165,9 @@ class FoodDetailView(APIView):
         return APIResponse(data=None, status=status.HTTP_204_NO_CONTENT)
 
 
-@extend_schema(tags=["Foods"], summary="Toggle a food item's availability (owner only)")
+@extend_schema(tags=["Foods"], summary="Toggle a food item's availability (owner/manager/staff)")
 class FoodAvailabilityView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
 
     def patch(self, request, restaurant_id, pk):
         food = get_object_or_404(Food, pk=pk, restaurant_id=restaurant_id)
@@ -169,9 +178,9 @@ class FoodAvailabilityView(APIView):
         return APIResponse(data=FoodDetailSerializer(food).data)
 
 
-@extend_schema(tags=["Foods"], summary="Update a food item's inventory settings (owner only)")
+@extend_schema(tags=["Foods"], summary="Update a food item's inventory settings (owner/manager/staff)")
 class FoodInventoryView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
 
     def patch(self, request, restaurant_id, pk):
         food = get_object_or_404(Food, pk=pk, restaurant_id=restaurant_id)
@@ -184,14 +193,15 @@ class FoodInventoryView(APIView):
 
 @extend_schema(tags=["Food Variants"])
 class FoodVariantListCreateView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
+    min_partner_role = RestaurantStaffRole.MANAGER
 
     def get(self, request, food_id):
         food = get_object_or_404(Food, pk=food_id)
         self.check_object_permissions(request, food)
         return APIResponse(data=FoodVariantSerializer(food.variants.all(), many=True).data)
 
-    @extend_schema(summary="Create a food variant (owner only)")
+    @extend_schema(summary="Create a food variant (owner/manager)")
     def post(self, request, food_id):
         food = get_object_or_404(Food, pk=food_id)
         self.check_object_permissions(request, food)
@@ -203,7 +213,8 @@ class FoodVariantListCreateView(APIView):
 
 @extend_schema(tags=["Food Variants"])
 class FoodVariantDetailView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
+    min_partner_role = RestaurantStaffRole.MANAGER
 
     def patch(self, request, food_id, pk):
         variant = get_object_or_404(FoodVariant, pk=pk, food_id=food_id)
@@ -220,9 +231,9 @@ class FoodVariantDetailView(APIView):
         return APIResponse(data=None, status=status.HTTP_204_NO_CONTENT)
 
 
-@extend_schema(tags=["Food Variants"], summary="Update a variant's inventory settings (owner only)")
+@extend_schema(tags=["Food Variants"], summary="Update a variant's inventory settings (owner/manager/staff)")
 class FoodVariantInventoryView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
 
     def patch(self, request, food_id, pk):
         variant = get_object_or_404(FoodVariant, pk=pk, food_id=food_id)
@@ -235,14 +246,15 @@ class FoodVariantInventoryView(APIView):
 
 @extend_schema(tags=["Food Addons"])
 class FoodAddonListCreateView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
+    min_partner_role = RestaurantStaffRole.MANAGER
 
     def get(self, request, food_id):
         food = get_object_or_404(Food, pk=food_id)
         self.check_object_permissions(request, food)
         return APIResponse(data=FoodAddonSerializer(food.addons.all(), many=True).data)
 
-    @extend_schema(summary="Create a food addon (owner only)")
+    @extend_schema(summary="Create a food addon (owner/manager)")
     def post(self, request, food_id):
         food = get_object_or_404(Food, pk=food_id)
         self.check_object_permissions(request, food)
@@ -254,7 +266,8 @@ class FoodAddonListCreateView(APIView):
 
 @extend_schema(tags=["Food Addons"])
 class FoodAddonDetailView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
+    min_partner_role = RestaurantStaffRole.MANAGER
 
     def patch(self, request, food_id, pk):
         addon = get_object_or_404(FoodAddon, pk=pk, food_id=food_id)
@@ -297,7 +310,8 @@ class FoodImageListCreateView(APIView):
 
 @extend_schema(tags=["Food Images"])
 class FoodImageDetailView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
+    min_partner_role = RestaurantStaffRole.MANAGER
 
     def patch(self, request, food_id, pk):
         image = get_object_or_404(FoodImage, pk=pk, food_id=food_id)
@@ -334,7 +348,8 @@ class FoodDiscountListCreateView(APIView):
 
 @extend_schema(tags=["Food Discounts"])
 class FoodDiscountDetailView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsRestaurantOwnerOfObject]
+    permission_classes = [permissions.IsAuthenticated, IsRestaurantTeamMember]
+    min_partner_role = RestaurantStaffRole.MANAGER
 
     def patch(self, request, food_id, pk):
         discount = get_object_or_404(FoodDiscount, pk=pk, food_id=food_id)

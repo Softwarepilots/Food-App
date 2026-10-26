@@ -45,6 +45,10 @@ class MyRestaurantNotifier extends AsyncNotifier<RestaurantModel?> {
     required String city,
     required double latitude,
     required double longitude,
+    required String panNumber,
+    required String fssaiNumber,
+    required String shopLicenseNumber,
+    String? gstNumber,
   }) async {
     final restaurant = await ref.read(restaurantRemoteDataSourceProvider).createRestaurant(
           name: name,
@@ -53,6 +57,10 @@ class MyRestaurantNotifier extends AsyncNotifier<RestaurantModel?> {
           city: city,
           latitude: latitude,
           longitude: longitude,
+          panNumber: panNumber,
+          fssaiNumber: fssaiNumber,
+          shopLicenseNumber: shopLicenseNumber,
+          gstNumber: gstNumber,
         );
     state = AsyncValue.data(restaurant);
   }
