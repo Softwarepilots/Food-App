@@ -1,6 +1,6 @@
 from django.contrib import admin, messages
 
-from .models import DeliveryPartner
+from .models import DeliveryPartner, DeliveryShift, ShiftBooking
 
 
 @admin.register(DeliveryPartner)
@@ -21,3 +21,17 @@ class DeliveryPartnerAdmin(admin.ModelAdmin):
     def unverify_partners(self, request, queryset):
         count = queryset.update(is_verified=False)
         self.message_user(request, f"Un-verified {count} delivery partner(s).", messages.WARNING)
+
+
+@admin.register(DeliveryShift)
+class DeliveryShiftAdmin(admin.ModelAdmin):
+    list_display = ("date", "start_time", "end_time", "rate_min_per_hour", "rate_max_per_hour", "capacity", "is_peak")
+    list_filter = ("date", "is_peak")
+    ordering = ("date", "start_time")
+
+
+@admin.register(ShiftBooking)
+class ShiftBookingAdmin(admin.ModelAdmin):
+    list_display = ("shift", "delivery_partner", "status", "created_at")
+    list_filter = ("status",)
+    autocomplete_fields = ("delivery_partner",)

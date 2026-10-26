@@ -10,8 +10,8 @@ from apps.orders.models import Order
 from apps.orders.serializers import OrderSerializer
 
 from . import services
-from .models import DeliveryPartner
-from .serializers import DeliveryPartnerProfileSerializer, DeliveryPartnerStatusUpdateSerializer
+from .models import DeliveryPartner, ShiftBookingStatus
+from .serializers import DeliveryPartnerProfileSerializer, DeliveryPartnerStatusUpdateSerializer, DeliveryShiftSerializer
 
 
 @extend_schema(tags=["Delivery"], summary="Get or create the current user's delivery partner profile")
@@ -105,3 +105,58 @@ class AdminDeliveryPartnerVerifyView(APIView):
         partner.is_verified = bool(request.data.get("is_verified", True))
         partner.save(update_fields=["is_verified"])
         return APIResponse(data=DeliveryPartnerProfileSerializer(partner).data)
+
+
+def _shift_serializer_context(partner):
+    booked_shift_ids = set(
+        partner.shift_bookings.filter(status=ShiftBookingStatus.BOOKED).values_list("shift_id", flat=True)
+    )
+    return {"partner": partner, "booked_shift_ids": booked_shift_ids}
+
+
+@extend_schema(tags=["Delivery"], summary="List upcoming bookable gigs (shifts) with a guaranteed payout")
+class ShiftListView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsDeliveryPartner]
+
+    def get(self, request):
+        partner = get_object_or_404(DeliveryPartner, user=request.user)
+        queryset = services.upcoming_shifts_queryset()
+        return paginated_response(
+            request, self, queryset, DeliveryShiftSerializer, context=_shift_serializer_context(partner)
+        )
+
+
+@extend_schema(tags=["Delivery"], summary="List the current partner's upcoming booked gigs")
+class MyShiftsView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsDeliveryPartner]
+
+    def get(self, request):
+        partner = get_object_or_404(DeliveryPartner, user=request.user)
+        bookings = services.my_shift_bookings_queryset(partner)
+        shift_ids = [b.shift_id for b in bookings]
+        queryset = services.upcoming_shifts_queryset().filter(id__in=shift_ids)
+        return paginated_response(
+            request, self, queryset, DeliveryShiftSerializer, context=_shift_serializer_context(partner)
+        )
+
+
+@extend_schema(tags=["Delivery"], summary="Book a gig")
+class ShiftBookView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsDeliveryPartner]
+
+    def post(self, request, pk):
+        partner = get_object_or_404(DeliveryPartner, user=request.user)
+        services.book_shift(partner, pk)
+        shift = services.upcoming_shifts_queryset().get(pk=pk)
+        return APIResponse(data=DeliveryShiftSerializer(shift, context=_shift_serializer_context(partner)).data)
+
+
+@extend_schema(tags=["Delivery"], summary="Cancel a booked gig")
+class ShiftCancelView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsDeliveryPartner]
+
+    def post(self, request, pk):
+        partner = get_object_or_404(DeliveryPartner, user=request.user)
+        services.cancel_shift_booking(partner, pk)
+        shift = services.upcoming_shifts_queryset().get(pk=pk)
+        return APIResponse(data=DeliveryShiftSerializer(shift, context=_shift_serializer_context(partner)).data)
